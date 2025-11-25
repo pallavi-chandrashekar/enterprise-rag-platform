@@ -18,7 +18,7 @@ Deployable via Docker, Render, Fly.io
 
 backend/       → FastAPI app & core services  
 docs/          → Architecture, diagrams, requirements  
-docker-compose.yml (coming soon)
+docker-compose.yml
 
 🧱 Tech Stack
 
