@@ -1,6 +1,6 @@
 # Enterprise RAG Platform --- Requirements (Short Version)
 
-**File:** `/docs/requirements.md`
+**File:** `/docs/requirements.md` \
 **Version:** 1.0
 
 ## 1. Purpose
