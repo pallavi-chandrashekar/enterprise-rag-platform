@@ -1,4 +1,4 @@
-# Enterprise RAG Platform --- Architecture (Short Version)
+# Enterprise RAG Platform --- Architecture
 
 **Version:** 1.0
 
