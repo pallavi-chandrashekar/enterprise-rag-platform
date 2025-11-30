@@ -20,6 +20,13 @@ backend/       → FastAPI app & core services
 docs/          → Architecture, diagrams, requirements  
 docker-compose.yml
 
+🏁 Getting Started (local)
+
+- Install Python 3.11+.  
+- Install deps: `pip install -r requirements.txt` (set `PYTHONPATH=backend` when running locally).  
+- Run API: `uvicorn app.main:app --app-dir backend --reload`.  
+- Or via Docker Compose: `docker-compose up --build` (starts Postgres+PGVector and the API).
+
 🧱 Tech Stack
 
 Python, FastAPI

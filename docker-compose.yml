@@ -1,0 +1,31 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: rag_db
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - rag_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://rag_user:rag_pass@db:5432/rag_db
+      JWT_SECRET: changeme
+      JWT_ALGORITHM: HS256
+      EMBEDDING_MODEL_NAME: sentence-transformers/all-MiniLM-L6-v2
+      VECTOR_DIMENSION: 384
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+volumes:
+  rag_data:
