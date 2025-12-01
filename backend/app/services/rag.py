@@ -1,6 +1,9 @@
+import uuid
+
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.services.embeddings import EmbeddingService
+from app.services.llm import LLMClient
 from app.models.entities import Chunk
 from app.schemas.models import RAGSource
 
@@ -8,18 +11,21 @@ from app.schemas.models import RAGSource
 class RAGService:
     def __init__(self, db: Session) -> None:
         self.db = db
-        self.settings = get_settings()
-        # TODO: initialize vector index / PGVector client and LLM client
+        self.embedder = EmbeddingService()
+        self.llm = LLMClient()
 
-    def search(self, kb_id: str, top_k: int) -> list[RAGSource]:
-        # TODO: replace with PGVector similarity search using embeddings
-        chunks = (
-            self.db.query(Chunk)
-            .filter(Chunk.kb_id == kb_id)
-            .order_by(Chunk.created_at.desc())
+    def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
+        query_vec = self.embedder.embed_texts([query_text])[0]
+        distance = Chunk.embedding.cosine_distance(query_vec)
+
+        results = (
+            self.db.query(Chunk, distance.label("score"))
+            .filter(Chunk.tenant_id == tenant_id, Chunk.kb_id == kb_id)
+            .order_by(distance)
             .limit(top_k)
             .all()
         )
+
         return [
             RAGSource(
                 document_id=str(chunk.document_id),
@@ -27,5 +33,12 @@ class RAGService:
                 content=chunk.content,
                 metadata=chunk.chunk_metadata,
             )
-            for chunk in chunks
+            for chunk, _score in results
         ]
+
+    def answer(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> tuple[str, list[RAGSource]]:
+        sources = self.search(tenant_id, kb_id, query_text, top_k)
+        context = "\n\n".join(f"- {src.content}" for src in sources)
+        prompt = f"Answer the question using the context.\n\nContext:\n{context}\n\nQuestion: {query_text}\nAnswer:"
+        answer = self.llm.generate(prompt)
+        return answer, sources

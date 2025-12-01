@@ -1,7 +1,9 @@
+import json
 import time
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -9,7 +11,6 @@ from app.auth.deps import get_current_tenant
 from app.core.config import get_settings
 from app.models.entities import Document, KnowledgeBase, Tenant
 from app.schemas.models import (
-    DocumentIngestRequest,
     DocumentRead,
     KnowledgeBaseCreate,
     KnowledgeBaseRead,
@@ -17,6 +18,8 @@ from app.schemas.models import (
     RAGQueryResponse,
     RAGSource,
 )
+from app.services.ingestion import IngestionPipeline
+from app.services.rag import RAGService
 
 router = APIRouter()
 
@@ -67,16 +70,15 @@ async def list_kb(
     return results
 
 
-@router.post("/ingest", response_model=DocumentRead, tags=["ingestion"])
-async def ingest_document(
-    payload: DocumentIngestRequest,
+@router.delete("/kb/{kb_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["knowledge_bases"])
+async def delete_kb(
+    kb_id: str,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant),
-) -> DocumentRead:
+) -> None:
     tenant = _get_or_create_tenant(db, tenant_id)
-
     try:
-        kb_uuid = uuid.UUID(payload.kb_id)
+        kb_uuid = uuid.UUID(kb_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
 
@@ -84,10 +86,63 @@ async def ingest_document(
     if not kb:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
 
-    document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=payload.filename, doc_metadata=payload.metadata)
+    db.delete(kb)
+    db.commit()
+
+
+def _parse_metadata(metadata_json: str | None) -> dict[str, Any] | None:
+    if metadata_json is None or metadata_json == "":
+        return None
+    try:
+        value = json.loads(metadata_json)
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("metadata must be a JSON object")
+        return value
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid metadata JSON: {exc.msg}")
+
+
+@router.post("/ingest", response_model=DocumentRead, tags=["ingestion"])
+async def ingest_document(
+    file: UploadFile = File(...),
+    kb_id: str = Form(...),
+    metadata: str | None = Form(None),
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+) -> DocumentRead:
+    tenant = _get_or_create_tenant(db, tenant_id)
+    metadata_dict = _parse_metadata(metadata)
+
+    try:
+        kb_uuid = uuid.UUID(kb_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+
+    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
+    if not kb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+
+    document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=file.filename, status="PROCESSING", doc_metadata=metadata_dict)
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    ingestion = IngestionPipeline(db)
+    file_bytes = await file.read()
+    try:
+        ingestion.process_uploaded_file(document, file_bytes)
+        db.refresh(document)
+    except HTTPException:
+        ingestion.mark_failed(document.id, "bad_request")
+        raise
+    except ValueError as exc:
+        ingestion.mark_failed(document.id, str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        ingestion.mark_failed(document.id, "ingestion_error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to ingest document") from exc
 
     return document
 
@@ -109,12 +164,8 @@ async def rag_query(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
 
     start_time = time.time()
-
-    # TODO: plug in embedding model, vector search, and LLM call.
-    answer = "This is a stubbed answer. Plug in LLM and retrieval logic."
-    sources = [
-        RAGSource(document_id="stub-doc", chunk_id="stub-chunk", content="example content", metadata=None)
-    ] if payload.top_k else []
+    rag_service = RAGService(db)
+    answer, sources = rag_service.answer(tenant.id, kb_uuid, payload.query, payload.top_k)
 
     latency_ms = int((time.time() - start_time) * 1000)
     return RAGQueryResponse(answer=answer, sources=sources, latency_ms=latency_ms)
