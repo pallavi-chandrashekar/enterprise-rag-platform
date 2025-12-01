@@ -38,7 +38,7 @@ docker-compose.yml
 
 🏗️ CI/CD
 
-- GitHub Actions workflow `.github/workflows/ci.yml` runs on push/PR: installs deps, compile-checks the backend, runs `pytest` (even if empty), and builds the backend Docker image to catch Dockerfile regressions.
+- GitHub Actions workflow `.github/workflows/ci.yml` runs on push/PR: installs deps, compile-checks the backend, runs `pytest`, and builds the backend Docker image to catch Dockerfile regressions.
 
 🔤 Embeddings & LLM
 
