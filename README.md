@@ -34,6 +34,7 @@ docker-compose.yml
 - `POST /ingest` — multipart upload: `file` (PDF/DOCX/TXT/MD), `kb_id`, optional `metadata` JSON string. The pipeline extracts text → chunks → embeddings and marks the document `READY`.  
 - `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5 }` returns grounded answer + sources.  
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
+- Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 
 🔤 Embeddings & LLM
 
