@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     vector_dimension: int = 384
+    normalize_embeddings: bool = True
+    llm_provider: str = "stub"
+    llm_model: str = "stub-v1"
+    llm_api_key: str | None = None
 
     class Config:
         env_file = ".env"
