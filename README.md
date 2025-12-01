@@ -36,6 +36,10 @@ docker-compose.yml
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
 - Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 
+🏗️ CI/CD
+
+- GitHub Actions workflow `.github/workflows/ci.yml` runs on push/PR: installs deps, compile-checks the backend, runs `pytest` (even if empty), and builds the backend Docker image to catch Dockerfile regressions.
+
 🔤 Embeddings & LLM
 
 - Embeddings use `sentence-transformers/all-MiniLM-L6-v2` (dim 384, cosine-normalized). Adjust via `EMBEDDING_MODEL_NAME` / `VECTOR_DIMENSION`.  
