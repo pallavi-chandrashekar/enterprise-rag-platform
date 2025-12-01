@@ -52,7 +52,7 @@ GitHub Actions (CI/CD)
 
 📘 Documentation
 
-See: /docs/Architecture.md (in progress)
+See: /docs/Architecture.md
 
 📌 Goal
 
