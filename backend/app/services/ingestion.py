@@ -77,7 +77,10 @@ class IngestionPipeline:
         step = max_words - overlap if max_words > overlap else max_words
         while start < len(words):
             end = start + max_words
-            chunk = " ".join(words[start:end]).strip()
+            slice_words = words[start:end]
+            if len(slice_words) < max(overlap, 1):
+                break
+            chunk = " ".join(slice_words).strip()
             if chunk:
                 chunks.append(chunk)
             start += step
