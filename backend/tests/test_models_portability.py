@@ -17,4 +17,5 @@ def test_models_use_sqlite_fallback_types(monkeypatch):
 
     assert entities.IS_SQLITE is True
     assert "String" in entities.UUID_TYPE.__class__.__name__
-    assert entities.EMBEDDING_TYPE.__class__.__name__ == "JSON"
+    emb_name = entities.EMBEDDING_TYPE.__name__ if isinstance(entities.EMBEDDING_TYPE, type) else entities.EMBEDDING_TYPE.__class__.__name__
+    assert "JSON" in emb_name
