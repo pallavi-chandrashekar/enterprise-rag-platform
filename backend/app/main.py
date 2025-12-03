@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import uuid
 
@@ -46,5 +47,6 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-# Create tables in dev/local; in production, prefer migrations.
-Base.metadata.create_all(bind=engine)
+# Create tables in dev/local; in production, prefer migrations. Skipped when SKIP_DB_INIT=1.
+if os.getenv("SKIP_DB_INIT") != "1":
+    Base.metadata.create_all(bind=engine)
