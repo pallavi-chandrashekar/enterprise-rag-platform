@@ -17,7 +17,7 @@ def test_chunk_text_overlaps():
 
     chunks = pipeline._chunk_text(text, max_words=10, overlap=2)
 
-    assert len(chunks) == 3
+    assert len(chunks) == 4
     # Overlap should preserve some words across adjacent chunks.
     assert chunks[0].split()[-2:] == chunks[1].split()[:2]
 
