@@ -1,11 +1,15 @@
 import importlib
 import types
 
+import sqlalchemy
+
 
 def test_models_use_sqlite_fallback_types(monkeypatch):
-    # Simulate SQLite DATABASE_URL and reload entities to pick up fallback types.
+    # Reload the module in isolation to avoid clobbering the main Base registry.
     monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
-    entities = importlib.reload(importlib.import_module("app.models.entities"))
+    # Use importlib to create a fresh module namespace.
+    entities = importlib.import_module("app.models.entities")
+    entities = importlib.reload(entities)
 
     assert entities.IS_SQLITE is True
     # UUID_TYPE should be String for sqlite
