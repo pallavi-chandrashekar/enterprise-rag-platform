@@ -52,6 +52,27 @@ class Document(Base):
     knowledge_base = relationship("KnowledgeBase", back_populates="documents")
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete")
 
+    @property
+    def failure_reason(self) -> str | None:
+        meta_reason = (self.doc_metadata or {}).get("last_error") if self.doc_metadata else None
+        if meta_reason:
+            return meta_reason
+        if self.status.startswith("FAILED"):
+            parts = self.status.split(":", 1)
+            if len(parts) == 2:
+                return parts[1].strip()
+            return "failed"
+        return None
+
+    @property
+    def ingestion_attempts(self) -> int | None:
+        if self.doc_metadata and "ingestion_attempts" in self.doc_metadata:
+            try:
+                return int(self.doc_metadata["ingestion_attempts"])
+            except (TypeError, ValueError):
+                return None
+        return None
+
 
 class Chunk(Base):
     __tablename__ = "chunks"

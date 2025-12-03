@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -10,7 +11,7 @@ class KnowledgeBaseCreate(BaseModel):
 
 
 class KnowledgeBaseRead(BaseModel):
-    id: str
+    id: uuid.UUID
     name: str
     description: str | None = None
     created_at: datetime
@@ -26,11 +27,13 @@ class DocumentIngestRequest(BaseModel):
 
 
 class DocumentRead(BaseModel):
-    id: str
-    kb_id: str
+    id: uuid.UUID
+    kb_id: uuid.UUID
     filename: str
     status: str
     metadata: dict[str, Any] | None = Field(None, alias="doc_metadata")
+    failure_reason: str | None = None
+    ingestion_attempts: int | None = None
     created_at: datetime
 
     class Config:
@@ -42,6 +45,7 @@ class RAGQueryRequest(BaseModel):
     kb_id: str
     query: str = Field(..., min_length=1)
     top_k: int = 5
+    max_tokens: int = 128
 
 
 class RAGSource(BaseModel):

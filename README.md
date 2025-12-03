@@ -20,6 +20,7 @@ docker-compose.yml
 
 🏁 Getting Started (local)
 
+- Copy `.env.example` to `.env` and set secrets (at least `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`).  
 - Install Python 3.11+.  
 - Install deps: `pip install -r requirements.txt` (set `PYTHONPATH=backend` when running locally).  
 - Run API: `uvicorn app.main:app --app-dir backend --reload`.  
@@ -31,8 +32,11 @@ docker-compose.yml
 - `POST /kb` — create knowledge base.  
 - `GET /kb` — list knowledge bases.  
 - `DELETE /kb/{kb_id}` — delete knowledge base + cascaded chunks/documents.  
-- `POST /ingest` — multipart upload: `file` (PDF/DOCX/TXT/MD), `kb_id`, optional `metadata` JSON string. The pipeline extracts text → chunks → embeddings and marks the document `READY`.  
-- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5 }` returns grounded answer + sources.  
+- `POST /ingest` — multipart upload: `file` (PDF/DOCX/TXT/MD), `kb_id`, optional `metadata` JSON string, optional `idempotency_key`. The pipeline extracts text → chunks → embeddings and marks the document `READY`; with `idempotency_key`, retries reuse the same doc record.  
+- `GET /documents` — list documents for the tenant (optional `kb_id` filter) with ingestion status.  
+- `GET /documents/{document_id}` — fetch a document record + status.  
+- `GET /documents/{document_id}/chunks` — list chunk content/metadata for a document (tenant-scoped).  
+- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5, "max_tokens": 128 }` returns grounded answer + sources; tune `max_tokens` to trade off latency/cost.  
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
 - Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 
