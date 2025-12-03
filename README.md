@@ -20,7 +20,7 @@ docker-compose.yml
 
 🏁 Getting Started (local)
 
-- Copy `.env.example` to `.env` and set secrets (at least `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`).  
+- Copy `.env.example` to `.env` and set secrets (at least `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`).  
 - Install Python 3.11+.  
 - Install deps: `pip install -r requirements.txt` (set `PYTHONPATH=backend` when running locally).  
 - Run API: `uvicorn app.main:app --app-dir backend --reload`.  
