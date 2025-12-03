@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.auth.deps import get_current_tenant
 from app.core.config import get_settings
-from app.models.entities import Document, KnowledgeBase, Tenant
+from app.models.entities import Chunk, Document, KnowledgeBase, Tenant
+from app.observability import metrics
 from app.schemas.models import (
     DocumentRead,
     KnowledgeBaseCreate,
@@ -57,6 +58,7 @@ async def create_kb(
     db.add(kb)
     db.commit()
     db.refresh(kb)
+    metrics.inc("kb_created")
     return kb
 
 
@@ -88,6 +90,7 @@ async def delete_kb(
 
     db.delete(kb)
     db.commit()
+    metrics.inc("kb_deleted")
 
 
 def _parse_metadata(metadata_json: str | None) -> dict[str, Any] | None:
@@ -109,6 +112,7 @@ async def ingest_document(
     file: UploadFile = File(...),
     kb_id: str = Form(...),
     metadata: str | None = Form(None),
+    idempotency_key: str | None = Form(None),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant),
 ) -> DocumentRead:
@@ -124,15 +128,45 @@ async def ingest_document(
     if not kb:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
 
-    document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=file.filename, status="PROCESSING", doc_metadata=metadata_dict)
-    db.add(document)
-    db.commit()
-    db.refresh(document)
+    # Idempotency: if key provided, reuse or retry the same document for this tenant/kb.
+    document: Document
+    if idempotency_key:
+        existing = (
+            db.query(Document)
+            .filter(
+                Document.tenant_id == tenant.id,
+                Document.kb_id == kb.id,
+                Document.doc_metadata["idempotency_key"].astext == idempotency_key,  # type: ignore[index]
+            )
+            .order_by(Document.created_at.desc())
+            .first()
+        )
+        if existing and existing.status == "READY":
+            return existing
+        if existing:
+            document = existing
+            document.filename = file.filename
+            document.status = "PROCESSING"
+            document.doc_metadata = (document.doc_metadata or {}) | {"idempotency_key": idempotency_key}
+        else:
+            merged_meta = (metadata_dict or {}) | {"idempotency_key": idempotency_key, "ingestion_attempts": 0}
+            document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=file.filename, status="PROCESSING", doc_metadata=merged_meta)
+            db.add(document)
+            db.commit()
+            db.refresh(document)
+    else:
+        merged_meta = (metadata_dict or {}) | {"ingestion_attempts": 0}
+        document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=file.filename, status="PROCESSING", doc_metadata=merged_meta)
+        db.add(document)
+        db.commit()
+        db.refresh(document)
 
     ingestion = IngestionPipeline(db)
     file_bytes = await file.read()
+    metrics.inc("ingest_requests")
     try:
-        ingestion.process_uploaded_file(document, file_bytes)
+        with metrics.timeit("ingest_ms"):
+            ingestion.process_uploaded_file(document, file_bytes)
         db.refresh(document)
     except HTTPException:
         ingestion.mark_failed(document.id, "bad_request")
@@ -145,6 +179,83 @@ async def ingest_document(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to ingest document") from exc
 
     return document
+
+
+@router.get("/documents", response_model=list[DocumentRead], tags=["ingestion"])
+async def list_documents(
+    kb_id: str | None = None,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+) -> list[DocumentRead]:
+    tenant = _get_or_create_tenant(db, tenant_id)
+    query = db.query(Document).filter(Document.tenant_id == tenant.id)
+    if kb_id:
+        try:
+            kb_uuid = uuid.UUID(kb_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+        query = query.filter(Document.kb_id == kb_uuid)
+    return query.order_by(Document.created_at.desc()).all()
+
+
+@router.get("/documents/{document_id}", response_model=DocumentRead, tags=["ingestion"])
+async def get_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+) -> DocumentRead:
+    tenant = _get_or_create_tenant(db, tenant_id)
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="document_id is not a valid UUID")
+
+    doc = (
+        db.query(Document)
+        .filter(Document.id == doc_uuid, Document.tenant_id == tenant.id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found for tenant")
+    return doc
+
+
+@router.get("/documents/{document_id}/chunks", tags=["ingestion"])
+async def list_document_chunks(
+    document_id: str,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+) -> list[dict[str, str | dict | None]]:
+    tenant = _get_or_create_tenant(db, tenant_id)
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="document_id is not a valid UUID")
+
+    doc = (
+        db.query(Document)
+        .filter(Document.id == doc_uuid, Document.tenant_id == tenant.id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found for tenant")
+
+    chunks = (
+        db.query(Chunk)
+        .filter(Chunk.document_id == doc_uuid, Chunk.tenant_id == tenant.id)
+        .order_by(Chunk.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": str(ch.id),
+            "kb_id": str(ch.kb_id),
+            "document_id": str(ch.document_id),
+            "content": ch.content,
+            "metadata": ch.chunk_metadata,
+        }
+        for ch in chunks
+    ]
 
 
 @router.post("/rag/query", response_model=RAGQueryResponse, tags=["rag"])
@@ -165,9 +276,11 @@ async def rag_query(
 
     start_time = time.time()
     rag_service = RAGService(db)
-    answer, sources = rag_service.answer(tenant.id, kb_uuid, payload.query, payload.top_k)
+    metrics.inc("rag_requests")
+    answer, sources = rag_service.answer(tenant.id, kb_uuid, payload.query, payload.top_k, payload.max_tokens)
 
     latency_ms = int((time.time() - start_time) * 1000)
+    metrics.observe_latency("rag_total_ms", latency_ms)
     return RAGQueryResponse(answer=answer, sources=sources, latency_ms=latency_ms)
 
 
@@ -180,4 +293,5 @@ async def read_settings() -> dict[str, str | int]:
         "app_name": settings.app_name,
         "environment": settings.environment,
         "vector_dimension": settings.vector_dimension,
+        "metrics": metrics.snapshot(),
     }

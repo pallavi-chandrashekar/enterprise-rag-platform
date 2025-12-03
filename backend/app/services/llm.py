@@ -14,7 +14,7 @@ class LLMClient:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    def generate(self, prompt: str, max_tokens: int = 512) -> str:
+    def generate(self, prompt: str, max_tokens: int = 128) -> str:
         provider = (self.settings.llm_provider or "stub").lower()
         if provider == "stub":
             return f"[stubbed llm reply]\nPrompt was:\n{prompt[:500]}"

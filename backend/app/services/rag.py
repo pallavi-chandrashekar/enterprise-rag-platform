@@ -36,9 +36,9 @@ class RAGService:
             for chunk, _score in results
         ]
 
-    def answer(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> tuple[str, list[RAGSource]]:
+    def answer(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int, max_tokens: int = 128) -> tuple[str, list[RAGSource]]:
         sources = self.search(tenant_id, kb_id, query_text, top_k)
         context = "\n\n".join(f"- {src.content}" for src in sources)
         prompt = f"Answer the question using the context.\n\nContext:\n{context}\n\nQuestion: {query_text}\nAnswer:"
-        answer = self.llm.generate(prompt)
+        answer = self.llm.generate(prompt, max_tokens=max_tokens)
         return answer, sources

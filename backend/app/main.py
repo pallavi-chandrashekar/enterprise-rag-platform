@@ -8,6 +8,8 @@ from fastapi.responses import Response
 from app.api import routes
 from app.core.config import get_settings
 from app.db.session import Base, engine
+from app.services.embeddings import EmbeddingService
+from app.observability import metrics
 
 settings = get_settings()
 logger = logging.getLogger("rag-app")
@@ -16,6 +18,15 @@ logger = logging.getLogger("rag-app")
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name)
     app.include_router(routes.router)
+
+    @app.on_event("startup")
+    async def warmup_embeddings() -> None:
+        try:
+            # Load embedding model once at startup to avoid first-request latency.
+            _ = EmbeddingService().model
+            logger.info("Embedding model warm-up complete")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Embedding warm-up failed: %s", exc)
 
     @app.middleware("http")
     async def add_request_context(request: Request, call_next) -> Response:  # type: ignore[override]
@@ -26,6 +37,7 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time-ms"] = str(duration_ms)
         logger.info("%s %s status=%s duration_ms=%s request_id=%s", request.method, request.url.path, response.status_code, duration_ms, request_id)
+        metrics.observe_latency("http_total_ms", duration_ms)
         return response
 
     return app
