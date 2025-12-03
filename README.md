@@ -44,6 +44,10 @@ docker-compose.yml
 
 - GitHub Actions workflow `.github/workflows/ci.yml` runs on push/PR: installs deps, compile-checks the backend, runs `pytest`, and builds the backend Docker image to catch Dockerfile regressions.
 
+🧪 Testing notes
+
+- Production requires Postgres + PGVector; tests fall back to SQLite with portable model types (UUIDs as strings, metadata/embeddings stored as JSON). This is only for local/CI test runs; use Postgres in real deployments.
+
 🔤 Embeddings & LLM
 
 - Embeddings use `sentence-transformers/all-MiniLM-L6-v2` (dim 384, cosine-normalized). Adjust via `EMBEDDING_MODEL_NAME` / `VECTOR_DIMENSION`.  

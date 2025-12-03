@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,11 +10,27 @@ from app.db.session import Base
 
 settings = get_settings()
 
+# Basic DB portability: fall back to generic types when not using Postgres/pgvector (e.g., SQLite in tests).
+IS_SQLITE = settings.database_url.startswith("sqlite")
+
+if IS_SQLITE:
+    from sqlalchemy import JSON
+
+    UUID_TYPE = String(36)
+    JSON_TYPE = JSON
+    EMBEDDING_TYPE = JSON
+else:
+    from pgvector.sqlalchemy import Vector
+
+    UUID_TYPE = UUID(as_uuid=True)
+    JSON_TYPE = JSONB
+    EMBEDDING_TYPE = Vector(dim=settings.vector_dimension)
+
 
 class Tenant(Base):
     __tablename__ = "tenants"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -26,8 +41,8 @@ class Tenant(Base):
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -40,12 +55,12 @@ class KnowledgeBase(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    kb_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    kb_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="UPLOADED")
-    doc_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    doc_metadata: Mapped[dict | None] = mapped_column("metadata", JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     tenant = relationship("Tenant", back_populates="documents")
@@ -77,13 +92,13 @@ class Document(Base):
 class Chunk(Base):
     __tablename__ = "chunks"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    kb_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, nullable=False)
+    kb_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False)
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(dim=settings.vector_dimension), nullable=True)
-    chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(EMBEDDING_TYPE, nullable=True)
+    chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     document = relationship("Document", back_populates="chunks")
