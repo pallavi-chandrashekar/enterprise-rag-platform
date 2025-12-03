@@ -1,11 +1,22 @@
 import os
 
-# Use lightweight SQLite for tests to avoid Postgres dependency.
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
-
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
 
+# Use an in-memory SQLite DB for this simple healthcheck test to avoid PG + pgvector.
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+
+from app.core.config import get_settings
+from app.db.session import Base
 from app.main import app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_sqlite_db():
+    engine = create_engine(os.environ["DATABASE_URL"])
+    Base.metadata.create_all(bind=engine)
+    yield
 
 
 client = TestClient(app)
