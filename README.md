@@ -53,16 +53,16 @@ docker-compose.yml
 
 ```mermaid
 flowchart TD
-    A[User Query] --> B[Embedding]
-    B --> C[Search Strategy Selection]
-    C --> D[Vector Search]
-    C --> E[Full-Text Search]
-    D -- Results with scores --> F[Reciprocal Rank Fusion (RRF)]
-    E -- Results with scores --> F
-    F -- Combined ranked results --> G[Reranking (optional)]
-    G --> H[Context formulation]
-    H --> I[LLM generation]
-    I --> J[Answer + sources]
+  A[User Query] --> B[Embedding]
+  B --> C[Search Strategy Selection]
+  C --> D[Vector Search]
+  C --> E[Full-Text Search]
+  D -- "Results with scores" --> F["Reciprocal Rank Fusion (RRF)"]
+  E -- "Results with scores" --> F
+  F -- "Combined ranked results" --> G["Reranking (optional)"]
+  G --> H[Context formulation]
+  H --> I[LLM generation]
+  I --> J[Answer + sources]
 ```
 
 🏗️ CI/CD
