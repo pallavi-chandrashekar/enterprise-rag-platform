@@ -21,7 +21,7 @@ docker-compose.yml
 
 🏁 Getting Started (local)
 
-- Copy `.env.example` to `.env` and set secrets (at least `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`).  
+- The application is configured using `settings.toml` for default settings and `.secrets.toml` for secrets. You can override any setting using environment variables with the `RAG_` prefix (e.g., `RAG_LLM_PROVIDER=openai`).
 - Install Python 3.11+.  
 - Install deps: `pip install -r requirements.txt` (set `PYTHONPATH=backend` when running locally).  
 - Run API: `uvicorn app.main:app --app-dir backend --reload`.  

@@ -1,0 +1,21 @@
+[default]
+app_name = "Enterprise RAG Platform"
+environment = "local"
+jwt_secret = "changeme"
+jwt_algorithm = "HS256"
+embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+vector_dimension = 384
+normalize_embeddings = true
+llm_provider = "stub"
+llm_model = "stub-v1"
+llm_api_key = null
+reranker_model_name = null
+
+[development]
+environment = "dev"
+
+[testing]
+environment = "test"
+
+[production]
+environment = "prod"

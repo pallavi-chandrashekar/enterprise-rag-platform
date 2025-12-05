@@ -1,7 +1,7 @@
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from app.core.config import get_settings
+from app.core.config import settings
 
 if TYPE_CHECKING:
     from sentence_transformers.cross_encoder import CrossEncoder
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class RerankingService:
     def __init__(self) -> None:
-        self.settings = get_settings()
+        self.settings = settings
 
     @cached_property
     def model(self) -> "CrossEncoder":

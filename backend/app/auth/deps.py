@@ -2,14 +2,13 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
-from app.core.config import get_settings
+from app.core.config import settings
 
 
 security = HTTPBearer(auto_error=False)
 
 
 def get_current_tenant(creds: HTTPAuthorizationCredentials | None = Security(security)) -> str:
-    settings = get_settings()
     if creds is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing")
 

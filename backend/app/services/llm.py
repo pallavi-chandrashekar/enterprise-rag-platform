@@ -5,14 +5,14 @@ from typing import Any
 
 import requests
 
-from app.core.config import get_settings
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
     def __init__(self) -> None:
-        self.settings = get_settings()
+        self.settings = settings
 
     def generate(self, prompt: str, max_tokens: int = 128) -> str:
         provider = (self.settings.llm_provider or "stub").lower()

@@ -8,12 +8,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
 from app.api import routes
-from app.core.config import get_settings
+from app.core.config import settings
 from app.db.session import Base, engine
 from app.services.embeddings import EmbeddingService
 from app.observability import http_request_latency_ms, http_requests_total, metrics
 
-settings = get_settings()
 logger = logging.getLogger("rag-app")
 
 

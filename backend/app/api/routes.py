@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.auth.deps import get_current_tenant
-from app.core.config import get_settings
+from app.core.config import settings
 from app.models.entities import Chunk, Document, KnowledgeBase, Tenant
 from app.observability import http_request_latency_ms, http_requests_total, metrics
 from app.schemas.models import (
@@ -323,9 +323,6 @@ async def rag_query(
     http_requests_total.labels("POST", "/rag/query", "200").inc()
     http_request_latency_ms.labels("POST", "/rag/query").observe(latency_ms)
     return RAGQueryResponse(answer=answer, sources=sources, latency_ms=latency_ms)
-
-
-settings = get_settings()
 
 
 @router.get("/settings", tags=["debug"])
