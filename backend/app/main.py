@@ -11,7 +11,7 @@ from app.api import routes
 from app.core.config import get_settings
 from app.db.session import Base, engine
 from app.services.embeddings import EmbeddingService
-from app.observability import metrics
+from app.observability import http_request_latency_ms, http_requests_total, metrics
 
 settings = get_settings()
 logger = logging.getLogger("rag-app")
@@ -52,6 +52,8 @@ def create_app() -> FastAPI:
             request_id,
         )
         metrics.observe_latency("http_total_ms", duration_ms)
+        http_requests_total.labels(request.method, request.url.path, str(response.status_code)).inc()
+        http_request_latency_ms.labels(request.method, request.url.path).observe(duration_ms)
         return response
 
     return app

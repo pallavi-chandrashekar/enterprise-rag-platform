@@ -4,7 +4,16 @@ from collections import Counter
 from contextlib import contextmanager
 from typing import Iterator
 
+from prometheus_client import Counter as PromCounter
+from prometheus_client import Histogram
+from prometheus_client import generate_latest
+
 logger = logging.getLogger("rag-app")
+
+http_requests_total = PromCounter("rag_http_requests_total", "Total HTTP requests", ["method", "path", "status"])
+http_request_latency_ms = Histogram("rag_http_request_latency_ms", "HTTP request latency (ms)", ["method", "path"])
+ingest_latency_ms = Histogram("rag_ingest_latency_ms", "Ingestion latency (ms)")
+rag_latency_ms = Histogram("rag_rag_latency_ms", "RAG total latency (ms)")
 
 
 class Metrics:
@@ -41,6 +50,10 @@ class Metrics:
         finally:
             ms = int((time.time() - start) * 1000)
             self.observe_latency(name, ms)
+            if name == "ingest_ms":
+                ingest_latency_ms.observe(ms)
+            if name == "rag_total_ms":
+                rag_latency_ms.observe(ms)
 
 
 metrics = Metrics()

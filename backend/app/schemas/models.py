@@ -46,6 +46,7 @@ class RAGQueryRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int = 5
     max_tokens: int = 128
+    use_rerank: bool = True
 
 
 class RAGSource(BaseModel):

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_provider: str = "stub"
     llm_model: str = "stub-v1"
     llm_api_key: str | None = None
+    reranker_model_name: str | None = None
 
     class Config:
         env_file = ".env"

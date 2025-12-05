@@ -7,6 +7,7 @@ A production-grade, multi-tenant Retrieval-Augmented Generation (RAG) platform b
 Multi-tenant knowledge bases (create/list/delete)  
 Document ingestion (PDF, DOCX, text/markdown) with extraction → chunking → embeddings → PGVector storage  
 Similarity search + RAG query endpoint (`/rag/query`) with grounding sources  
+Reranking for improved retrieval relevance (`/rag/query` endpoint can optionally use it)  
 JWT-based tenant-aware auth  
 Configurable LLM client (stub by default; OpenAI/Groq supported)  
 Basic request logging + response timing headers  
@@ -36,7 +37,7 @@ docker-compose.yml
 - `GET /documents` — list documents for the tenant (optional `kb_id` filter) with ingestion status.  
 - `GET /documents/{document_id}` — fetch a document record + status.  
 - `GET /documents/{document_id}/chunks` — list chunk content/metadata for a document (tenant-scoped).  
-- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5, "max_tokens": 128 }` returns grounded answer + sources; tune `max_tokens` to trade off latency/cost.  
+- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5, "max_tokens": 128, "use_rerank": true }` returns grounded answer + sources; tune `max_tokens` to trade off latency/cost. `use_rerank` (default: true) leverages a cross-encoder model to improve the relevance of retrieved documents.  
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
 - Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 
@@ -51,6 +52,7 @@ docker-compose.yml
 🔤 Embeddings & LLM
 
 - Embeddings use `sentence-transformers/all-MiniLM-L6-v2` (dim 384, cosine-normalized). Adjust via `EMBEDDING_MODEL_NAME` / `VECTOR_DIMENSION`.  
+- Reranker uses `cross-encoder/ms-marco-MiniLM-L-6-v2` by default. Adjust via `RERANKER_MODEL_NAME`.  
 - LLM client defaults to a stub; set `LLM_PROVIDER=openai|groq`, `LLM_MODEL=<model>`, and `LLM_API_KEY=<key>` to call a real provider.  
 - Rebuild containers after changing models/deps: `docker-compose up --build --force-recreate`.
 
