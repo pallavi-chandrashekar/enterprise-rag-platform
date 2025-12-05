@@ -59,9 +59,9 @@ graph TD
     B --> C{Search Strategy Selection};
     C --> D{Vector Search}
     C --> E{Full-Text Search}
-    D -- Results with Scores --> F{Reciprocal Rank Fusion (RRF)};
-    E -- Results with Scores --> F;
-    F -- Combined Ranked Results --> G{Reranking (Optional)};
+    D -- "Results with Scores" --> F{Reciprocal Rank Fusion (RRF)};
+    E -- "Results with Scores" --> F;
+    F -- "Combined Ranked Results" --> G{Reranking (Optional)};
     G --> H{Context Formulation};
     H --> I{LLM Generation};
     I --> J[Answer + Sources];
