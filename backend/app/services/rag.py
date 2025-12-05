@@ -10,7 +10,7 @@ from app.services.embeddings import EmbeddingService
 from app.services.llm import LLMClient
 from app.services.rerank import RerankingService
 from app.models.entities import Chunk
-from app.schemas.models import RAGSource
+from app.schemas.models import RAGSource, SearchType
 
 class RAGService:
     def __init__(self, db: Session) -> None:
@@ -18,6 +18,51 @@ class RAGService:
         self.embedder = EmbeddingService()
         self.llm = LLMClient()
         self.reranker = RerankingService()
+
+    def _vector_search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
+        query_vec = self.embedder.embed_texts([query_text])[0]
+        distance = Chunk.embedding.cosine_distance(query_vec)
+
+        results = (
+            self.db.query(Chunk, distance.label("score"))
+            .filter(Chunk.tenant_id == tenant_id, Chunk.kb_id == kb_id)
+            .order_by(distance)
+            .limit(top_k)
+            .all()
+        )
+
+        return [
+            RAGSource(
+                document_id=str(chunk.document_id),
+                chunk_id=str(chunk.id),
+                content=chunk.content,
+                metadata=chunk.chunk_metadata,
+            )
+            for chunk, _score in results
+        ]
+
+    def _full_text_search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
+        fulltext_query = (
+            self.db.query(
+                Chunk,
+                func.ts_rank_cd(Chunk.content_tsv, func.to_tsquery(query_text)).label("score"),
+            )
+            .filter(Chunk.content_tsv.match(query_text, postgresql_regconfig="english"))
+            .filter(Chunk.tenant_id == tenant_id, Chunk.kb_id == kb_id)
+            .order_by(func.ts_rank_cd(Chunk.content_tsv, func.to_tsquery(query_text)).desc())
+            .limit(top_k)
+            .all()
+        )
+
+        return [
+            RAGSource(
+                document_id=str(chunk.document_id),
+                chunk_id=str(chunk.id),
+                content=chunk.content,
+                metadata=chunk.chunk_metadata,
+            )
+            for chunk, _score in fulltext_query
+        ]
 
     def _hybrid_search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
         query_vec = self.embedder.embed_texts([query_text])[0]
@@ -78,8 +123,15 @@ class RAGService:
 
         return results[:top_k]
 
-    def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
-        return self._hybrid_search(tenant_id, kb_id, query_text, top_k)
+    def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int, search_type: SearchType) -> list[RAGSource]:
+        if search_type == SearchType.vector:
+            return self._vector_search(tenant_id, kb_id, query_text, top_k)
+        elif search_type == SearchType.full_text:
+            return self._full_text_search(tenant_id, kb_id, query_text, top_k)
+        elif search_type == SearchType.hybrid:
+            return self._hybrid_search(tenant_id, kb_id, query_text, top_k)
+        else:
+            raise ValueError(f"Unknown search type: {search_type}")
 
     def rerank(self, query_text: str, sources: list[RAGSource], top_k: int) -> list[RAGSource]:
         if not sources:
@@ -100,10 +152,11 @@ class RAGService:
         top_k: int,
         max_tokens: int = 128,
         use_rerank: bool = True,
+        search_type: SearchType = SearchType.hybrid,
     ) -> tuple[str, list[RAGSource]]:
         # Initial retrieval gets more documents than required
         retrieval_k = top_k * 5
-        sources = self.search(tenant_id, kb_id, query_text, retrieval_k)
+        sources = self.search(tenant_id, kb_id, query_text, retrieval_k, search_type)
 
         if use_rerank and self.reranker.model:
             final_sources = self.rerank(query_text, sources, top_k)

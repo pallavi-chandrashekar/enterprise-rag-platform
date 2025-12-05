@@ -5,7 +5,7 @@ A production-grade, multi-tenant Retrieval-Augmented Generation (RAG) platform b
 🚀 Features (MVP)
 
 Multi-tenant knowledge bases (create/list/delete)  
-Document ingestion (PDF, DOCX, text/markdown) with extraction → chunking → embeddings → PGVector storage  
+Document ingestion (PDF, DOCX, PPTX, HTML, text/markdown, URLs) with extraction → chunking → embeddings → PGVector storage  
 Similarity search + RAG query endpoint (`/rag/query`) with grounding sources  
 Reranking for improved retrieval relevance (`/rag/query` endpoint can optionally use it)  
 JWT-based tenant-aware auth  
@@ -33,11 +33,17 @@ docker-compose.yml
 - `POST /kb` — create knowledge base.  
 - `GET /kb` — list knowledge bases.  
 - `DELETE /kb/{kb_id}` — delete knowledge base + cascaded chunks/documents.  
-- `POST /ingest` — multipart upload: `file` (PDF/DOCX/TXT/MD), `kb_id`, optional `metadata` JSON string, optional `idempotency_key`. The pipeline extracts text → chunks → embeddings and marks the document `READY`; with `idempotency_key`, retries reuse the same doc record.  
+- `POST /ingest` — multipart upload: `file` (PDF, DOCX, PPTX, HTML, TXT, MD), `kb_id`, optional `metadata` JSON string, optional `idempotency_key`. The pipeline extracts text → chunks → embeddings and marks the document `READY`; with `idempotency_key`, retries reuse the same doc record.  
+- `POST /ingest_url` — `{ "kb_id": "...", "url": "..." }` to ingest content from a URL.
 - `GET /documents` — list documents for the tenant (optional `kb_id` filter) with ingestion status.  
 - `GET /documents/{document_id}` — fetch a document record + status.  
 - `GET /documents/{document_id}/chunks` — list chunk content/metadata for a document (tenant-scoped).  
-- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5, "max_tokens": 128, "use_rerank": true }` returns grounded answer + sources; tune `max_tokens` to trade off latency/cost. `use_rerank` (default: true) leverages a cross-encoder model to improve the relevance of retrieved documents.  
+- `POST /rag/query` — `{ "kb_id": "...", "query": "question", "top_k": 5, "max_tokens": 128, "use_rerank": true, "search_type": "hybrid" }` returns grounded answer + sources.
+  - `use_rerank` (default: true) leverages a cross-encoder model to improve the relevance of retrieved documents.
+  - `search_type` (default: "hybrid") determines the search strategy:
+    - `"vector"`: Pure similarity search.
+    - `"full_text"`: Keyword-based search.
+    - `"hybrid"`: A combination of both vector and full-text search with Reciprocal Rank Fusion (RRF) to produce the best results.
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
 - Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 

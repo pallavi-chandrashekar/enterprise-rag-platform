@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Any
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -46,6 +47,10 @@ class DocumentRead(BaseModel):
         orm_mode = True
         allow_population_by_field_name = True
 
+class SearchType(str, Enum):
+    vector = "vector"
+    full_text = "full_text"
+    hybrid = "hybrid"
 
 class RAGQueryRequest(BaseModel):
     kb_id: str
@@ -53,6 +58,7 @@ class RAGQueryRequest(BaseModel):
     top_k: int = 5
     max_tokens: int = 128
     use_rerank: bool = True
+    search_type: SearchType = SearchType.hybrid
 
 
 class RAGSource(BaseModel):
