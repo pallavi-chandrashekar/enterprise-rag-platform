@@ -53,6 +53,20 @@ docker-compose.yml
 - Use `Authorization: Bearer <jwt-with-tenant_id>`; `/settings` is available for quick config inspection.
 - Need a token? Run `python backend/scripts/generate_jwt.py --secret <JWT_SECRET>` to print a usable `tenant_id` and token.
 
+```mermaid
+graph TD
+    A[User Query] --> B{Embedding};
+    B --> C{Search Strategy Selection};
+    C --> D{Vector Search}
+    C --> E{Full-Text Search}
+    D -- Results with Scores --> F{Reciprocal Rank Fusion (RRF)};
+    E -- Results with Scores --> F;
+    F -- Combined Ranked Results --> G{Reranking (Optional)};
+    G --> H{Context Formulation};
+    H --> I{LLM Generation};
+    I --> J[Answer + Sources];
+```
+
 🏗️ CI/CD
 
 - GitHub Actions workflow `.github/workflows/ci.yml` runs on push/PR: installs deps, compile-checks the backend, runs `pytest`, and builds the backend Docker image to catch Dockerfile regressions.
