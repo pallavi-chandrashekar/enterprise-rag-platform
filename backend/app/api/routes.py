@@ -4,13 +4,14 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.auth.deps import get_current_tenant
 from app.core.config import get_settings
 from app.models.entities import Chunk, Document, KnowledgeBase, Tenant
-from app.observability import metrics
+from app.observability import http_request_latency_ms, http_requests_total, metrics
 from app.schemas.models import (
     DocumentRead,
     KnowledgeBaseCreate,
@@ -28,6 +29,13 @@ router = APIRouter()
 @router.get("/healthz", tags=["health"])
 async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.get("/metrics", response_class=PlainTextResponse, tags=["health"])
+async def metrics_endpoint() -> PlainTextResponse:
+    from prometheus_client import generate_latest
+
+    return PlainTextResponse(generate_latest(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 def _get_or_create_tenant(db: Session, tenant_id: str) -> Tenant:
@@ -275,12 +283,15 @@ async def rag_query(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
 
     start_time = time.time()
+    request_start = start_time
     rag_service = RAGService(db)
     metrics.inc("rag_requests")
     answer, sources = rag_service.answer(tenant.id, kb_uuid, payload.query, payload.top_k, payload.max_tokens)
 
     latency_ms = int((time.time() - start_time) * 1000)
     metrics.observe_latency("rag_total_ms", latency_ms)
+    http_requests_total.labels("POST", "/rag/query", "200").inc()
+    http_request_latency_ms.labels("POST", "/rag/query").observe(latency_ms)
     return RAGQueryResponse(answer=answer, sources=sources, latency_ms=latency_ms)
 
 
