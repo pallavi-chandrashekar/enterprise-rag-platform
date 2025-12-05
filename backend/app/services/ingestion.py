@@ -1,9 +1,10 @@
 import io
 import logging
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 from uuid import UUID
 
+import requests
 from fastapi import HTTPException, status
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 from sqlalchemy.orm import Session
@@ -22,6 +23,21 @@ class IngestionPipeline:
     def process_uploaded_file(self, document: Document, file_bytes: bytes) -> None:
         try:
             text = self._extract_text(document.filename, file_bytes)
+            chunks = self._chunk_text(text)
+            if not chunks:
+                raise ValueError("No text found in document")
+            self._increment_attempt(document)
+            self.process_document(document, chunks)
+        except Exception as e:
+            logger.error(
+                f"Failed to process document {document.id} for tenant {document.tenant_id}: {e}",
+                exc_info=True,
+            )
+            self.mark_failed(document.id, str(e))
+
+    def process_url(self, document: Document) -> None:
+        try:
+            text = self._extract_text(document.filename)
             chunks = self._chunk_text(text)
             if not chunks:
                 raise ValueError("No text found in document")
@@ -64,7 +80,23 @@ class IngestionPipeline:
             self._merge_metadata(doc, {"last_error": reason})
             self.db.add(doc)
 
-    def _extract_text(self, filename: str, data: bytes) -> str:
+    def _extract_text(self, filename: str, data: Optional[bytes] = None) -> str:
+        if filename.startswith("http"):
+            try:
+                response = requests.get(filename, timeout=15)
+                response.raise_for_status()
+                # Use BeautifulSoup to parse the HTML content
+                soup = BeautifulSoup(response.content, "html.parser")
+                for tag in soup(["script", "style"]):
+                    tag.decompose()
+                text = soup.get_text(separator=" ")
+                return " ".join(text.split())
+            except requests.RequestException as e:
+                raise ValueError(f"Failed to fetch URL {filename}: {e}") from e
+
+        if data is None:
+            raise ValueError("File content is missing for non-URL ingestion.")
+
         ext = Path(filename).suffix.lower()
         if ext in {".txt", ".md", ".text"}:
             return data.decode("utf-8", errors="ignore")
@@ -82,6 +114,21 @@ class IngestionPipeline:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="python-docx not installed") from exc
             doc = docx.Document(io.BytesIO(data))
             return "\n".join(p.text for p in doc.paragraphs)
+        if ext == ".pptx":
+            try:
+                import pptx
+            except ImportError as exc:  # pragma: no cover - runtime guard
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="python-pptx not installed") from exc
+            prs = pptx.Presentation(io.BytesIO(data))
+            text_runs = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if not shape.has_text_frame:
+                        continue
+                    for paragraph in shape.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            text_runs.append(run.text)
+            return "\n".join(text_runs)
         if ext in {".html", ".htm"}:
             soup = BeautifulSoup(data, "html.parser")
             for tag in soup(["script", "style"]):

@@ -26,6 +26,12 @@ class DocumentIngestRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class URLIngestRequest(BaseModel):
+    kb_id: str
+    url: str = Field(..., min_length=1)
+    metadata: dict[str, Any] | None = None
+
+
 class DocumentRead(BaseModel):
     id: uuid.UUID
     kb_id: uuid.UUID
