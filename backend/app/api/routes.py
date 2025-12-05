@@ -3,7 +3,7 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -117,6 +117,7 @@ def _parse_metadata(metadata_json: str | None) -> dict[str, Any] | None:
 
 @router.post("/ingest", response_model=DocumentRead, tags=["ingestion"])
 async def ingest_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     kb_id: str = Form(...),
     metadata: str | None = Form(None),
@@ -172,19 +173,8 @@ async def ingest_document(
     ingestion = IngestionPipeline(db)
     file_bytes = await file.read()
     metrics.inc("ingest_requests")
-    try:
-        with metrics.timeit("ingest_ms"):
-            ingestion.process_uploaded_file(document, file_bytes)
-        db.refresh(document)
-    except HTTPException:
-        ingestion.mark_failed(document.id, "bad_request")
-        raise
-    except ValueError as exc:
-        ingestion.mark_failed(document.id, str(exc))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    except Exception as exc:  # noqa: BLE001
-        ingestion.mark_failed(document.id, "ingestion_error")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to ingest document") from exc
+
+    background_tasks.add_task(ingestion.process_uploaded_file, document, file_bytes)
 
     return document
 

@@ -1,4 +1,5 @@
 import io
+import logging
 from pathlib import Path
 from typing import Iterable
 from uuid import UUID
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.models.entities import Chunk, Document
 from app.services.embeddings import EmbeddingService
 
+logger = logging.getLogger(__name__)
+
 
 class IngestionPipeline:
     def __init__(self, db: Session) -> None:
@@ -17,12 +20,19 @@ class IngestionPipeline:
         self.embedder = EmbeddingService()
 
     def process_uploaded_file(self, document: Document, file_bytes: bytes) -> None:
-        text = self._extract_text(document.filename, file_bytes)
-        chunks = self._chunk_text(text)
-        if not chunks:
-            raise ValueError("No text found in document")
-        self._increment_attempt(document)
-        self.process_document(document, chunks)
+        try:
+            text = self._extract_text(document.filename, file_bytes)
+            chunks = self._chunk_text(text)
+            if not chunks:
+                raise ValueError("No text found in document")
+            self._increment_attempt(document)
+            self.process_document(document, chunks)
+        except Exception as e:
+            logger.error(
+                f"Failed to process document {document.id} for tenant {document.tenant_id}: {e}",
+                exc_info=True,
+            )
+            self.mark_failed(document.id, str(e))
 
     def process_document(self, document: Document, chunks: list[str]) -> None:
         embeddings = self.embedder.embed_texts(chunks)
