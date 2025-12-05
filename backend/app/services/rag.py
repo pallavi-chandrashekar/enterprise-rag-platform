@@ -1,7 +1,10 @@
 import uuid
+from collections import defaultdict
 from typing import Optional
 
+from sqlalchemy import union_all
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 
 from app.services.embeddings import EmbeddingService
 from app.services.llm import LLMClient
@@ -16,27 +19,67 @@ class RAGService:
         self.llm = LLMClient()
         self.reranker = RerankingService()
 
-    def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
+    def _hybrid_search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
         query_vec = self.embedder.embed_texts([query_text])[0]
-        distance = Chunk.embedding.cosine_distance(query_vec)
 
-        results = (
-            self.db.query(Chunk, distance.label("score"))
+        # Vector search query
+        vector_query = (
+            self.db.query(
+                Chunk.id.label("id"),
+                func.rank().over(order_by=Chunk.embedding.cosine_distance(query_vec)).label("rank"),
+            )
             .filter(Chunk.tenant_id == tenant_id, Chunk.kb_id == kb_id)
-            .order_by(distance)
             .limit(top_k)
-            .all()
+            .subquery()
         )
 
-        return [
-            RAGSource(
-                document_id=str(chunk.document_id),
-                chunk_id=str(chunk.id),
-                content=chunk.content,
-                metadata=chunk.chunk_metadata,
+        # Full-text search query
+        fulltext_query = (
+            self.db.query(
+                Chunk.id.label("id"),
+                func.rank().over(order_by=func.ts_rank_cd(Chunk.content_tsv, func.to_tsquery(query_text)).desc()).label("rank"),
             )
-            for chunk, _score in results
+            .filter(Chunk.content_tsv.match(query_text, postgresql_regconfig="english"))
+            .filter(Chunk.tenant_id == tenant_id, Chunk.kb_id == kb_id)
+            .limit(top_k)
+            .subquery()
+        )
+        
+        # Combine the results
+        combined_query = union_all(vector_query.select(), fulltext_query.select()).alias("combined_query")
+        
+        ranked_chunks = self.db.query(combined_query).all()
+        
+        # Calculate RRF scores
+        rrf_scores = defaultdict(float)
+        k = 60  # RRF constant
+        for id, rank in ranked_chunks:
+            rrf_scores[id] += 1 / (k + rank)
+
+        # Sort by RRF score
+        sorted_chunk_ids = sorted(rrf_scores.keys(), key=lambda id: rrf_scores[id], reverse=True)
+
+        # Fetch the actual Chunk objects for the unique IDs
+        chunks = self.db.query(Chunk).filter(Chunk.id.in_(sorted_chunk_ids)).all()
+        
+        # Create a dictionary for quick lookup
+        chunk_map = {chunk.id: chunk for chunk in chunks}
+        
+        # Create the final list of RAGSource objects, sorted by RRF score
+        results = [
+            RAGSource(
+                document_id=str(chunk_map[chunk_id].document_id),
+                chunk_id=str(chunk_id),
+                content=chunk_map[chunk_id].content,
+                metadata=chunk_map[chunk_id].chunk_metadata,
+            )
+            for chunk_id in sorted_chunk_ids
         ]
+
+        return results[:top_k]
+
+    def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
+        return self._hybrid_search(tenant_id, kb_id, query_text, top_k)
 
     def rerank(self, query_text: str, sources: list[RAGSource], top_k: int) -> list[RAGSource]:
         if not sources:
