@@ -1,18 +1,20 @@
 import uuid
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.services.embeddings import EmbeddingService
 from app.services.llm import LLMClient
+from app.services.rerank import RerankingService
 from app.models.entities import Chunk
 from app.schemas.models import RAGSource
-
 
 class RAGService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.embedder = EmbeddingService()
         self.llm = LLMClient()
+        self.reranker = RerankingService()
 
     def search(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int) -> list[RAGSource]:
         query_vec = self.embedder.embed_texts([query_text])[0]
@@ -36,9 +38,36 @@ class RAGService:
             for chunk, _score in results
         ]
 
-    def answer(self, tenant_id: uuid.UUID, kb_id: uuid.UUID, query_text: str, top_k: int, max_tokens: int = 128) -> tuple[str, list[RAGSource]]:
-        sources = self.search(tenant_id, kb_id, query_text, top_k)
-        context = "\n\n".join(f"- {src.content}" for src in sources)
+    def rerank(self, query_text: str, sources: list[RAGSource], top_k: int) -> list[RAGSource]:
+        if not sources:
+            return []
+
+        contents = [source.content for source in sources]
+        sorted_indices = self.reranker.score_and_sort(query_text, contents)
+
+        # Reorder the original sources based on the reranked indices
+        reranked_sources = [sources[i] for i in sorted_indices]
+        return reranked_sources[:top_k]
+
+    def answer(
+        self,
+        tenant_id: uuid.UUID,
+        kb_id: uuid.UUID,
+        query_text: str,
+        top_k: int,
+        max_tokens: int = 128,
+        use_rerank: bool = True,
+    ) -> tuple[str, list[RAGSource]]:
+        # Initial retrieval gets more documents than required
+        retrieval_k = top_k * 5
+        sources = self.search(tenant_id, kb_id, query_text, retrieval_k)
+
+        if use_rerank and self.reranker.model:
+            final_sources = self.rerank(query_text, sources, top_k)
+        else:
+            final_sources = sources[:top_k]
+
+        context = "\n\n".join(f"- {src.content}" for src in final_sources)
         prompt = f"Answer the question using the context.\n\nContext:\n{context}\n\nQuestion: {query_text}\nAnswer:"
         answer = self.llm.generate(prompt, max_tokens=max_tokens)
-        return answer, sources
+        return answer, final_sources

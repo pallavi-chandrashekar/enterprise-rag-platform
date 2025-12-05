@@ -286,7 +286,14 @@ async def rag_query(
     request_start = start_time
     rag_service = RAGService(db)
     metrics.inc("rag_requests")
-    answer, sources = rag_service.answer(tenant.id, kb_uuid, payload.query, payload.top_k, payload.max_tokens)
+    answer, sources = rag_service.answer(
+        tenant.id,
+        kb_uuid,
+        payload.query,
+        payload.top_k,
+        payload.max_tokens,
+        payload.use_rerank,
+    )
 
     latency_ms = int((time.time() - start_time) * 1000)
     metrics.observe_latency("rag_total_ms", latency_ms)
