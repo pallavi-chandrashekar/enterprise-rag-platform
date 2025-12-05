@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import get_settings
@@ -19,12 +20,14 @@ if IS_SQLITE:
     UUID_TYPE = String(36)
     JSON_TYPE = JSON
     EMBEDDING_TYPE = JSON
+    TSVECTOR_TYPE = String  # Use a simple string for SQLite
 else:
     from pgvector.sqlalchemy import Vector
 
     UUID_TYPE = UUID(as_uuid=True)
     JSON_TYPE = JSONB
     EMBEDDING_TYPE = Vector(dim=settings.vector_dimension)
+    TSVECTOR_TYPE = TSVECTOR
 
 
 class Tenant(Base):
@@ -97,6 +100,7 @@ class Chunk(Base):
     kb_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False)
     document_id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_tsv: Mapped[Any] = mapped_column(TSVECTOR_TYPE, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(EMBEDDING_TYPE, nullable=True)
     chunk_metadata: Mapped[dict | None] = mapped_column("metadata", JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

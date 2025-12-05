@@ -1,4 +1,7 @@
 import uuid
+import io
+import pptx
+from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
@@ -39,6 +42,33 @@ def test_extract_text_html_strips_scripts():
     extracted = pipeline._extract_text("page.html", html)
     assert "Hello world" in extracted
     assert "bad" not in extracted
+
+
+def test_extract_text_pptx():
+    pipeline = IngestionPipeline(db=DummyDB())
+    prs = pptx.Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    box = slide.shapes.add_textbox(1, 2, 3, 4)
+    box.text_frame.text = "This is a test presentation."
+    
+    f = io.BytesIO()
+    prs.save(f)
+    f.seek(0)
+    
+    extracted = pipeline._extract_text("sample.pptx", f.read())
+    assert "This is a test presentation." in extracted
+
+
+@patch("requests.get")
+def test_extract_text_from_url(mock_get):
+    pipeline = IngestionPipeline(db=DummyDB())
+    url = "https://example.com"
+    html_content = "<html><body><p>This is a test from a URL.</p></body></html>"
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.content = html_content.encode("utf-8")
+
+    extracted = pipeline._extract_text(url)
+    assert "This is a test from a URL." in extracted
 
 
 def test_chunk_text_allows_short_docs():

@@ -4,7 +4,7 @@ import pytest
 
 from app.services.rag import RAGService
 from app.services.rerank import RerankingService
-from app.schemas.models import RAGSource
+from app.schemas.models import RAGSource, SearchType
 
 
 def test_reranking_service_sorts_indices():
@@ -54,11 +54,11 @@ def test_rag_service_with_rerank():
          patch.object(rag_service.llm, "generate", return_value="The answer.") as mock_llm_generate:
 
         answer, sources = rag_service.answer(
-            tenant_id, kb_id, query, top_k=top_k, use_rerank=True
+            tenant_id, kb_id, query, top_k=top_k, use_rerank=True, search_type=SearchType.hybrid
         )
 
         # Assert initial search was called to get candidates
-        mock_search.assert_called_once_with(tenant_id, kb_id, query, top_k * 5)
+        mock_search.assert_called_once_with(tenant_id, kb_id, query, top_k * 5, SearchType.hybrid)
 
         # Assert rerank was called with the initial sources
         mock_rerank.assert_called_once_with(query, initial_sources, top_k)
@@ -99,10 +99,10 @@ def test_rag_service_without_rerank():
          patch.object(rag_service.llm, "generate", return_value="The answer.") as mock_llm_generate:
 
         answer, sources = rag_service.answer(
-            tenant_id, kb_id, query, top_k=top_k, use_rerank=False
+            tenant_id, kb_id, query, top_k=top_k, use_rerank=False, search_type=SearchType.hybrid
         )
 
-        mock_search.assert_called_once_with(tenant_id, kb_id, query, top_k * 5)
+        mock_search.assert_called_once_with(tenant_id, kb_id, query, top_k * 5, SearchType.hybrid)
 
         # Assert rerank was NOT called
         mock_rerank.assert_not_called()

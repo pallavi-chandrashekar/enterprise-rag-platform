@@ -19,6 +19,7 @@ from app.schemas.models import (
     RAGQueryRequest,
     RAGQueryResponse,
     RAGSource,
+    URLIngestRequest,
 )
 from app.services.ingestion import IngestionPipeline
 from app.services.rag import RAGService
@@ -179,6 +180,37 @@ async def ingest_document(
     return document
 
 
+@router.post("/ingest_url", response_model=DocumentRead, tags=["ingestion"])
+async def ingest_url(
+    payload: URLIngestRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+) -> DocumentRead:
+    tenant = _get_or_create_tenant(db, tenant_id)
+
+    try:
+        kb_uuid = uuid.UUID(payload.kb_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+
+    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
+    if not kb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+
+    document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=payload.url, status="PROCESSING", doc_metadata=payload.metadata)
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    ingestion = IngestionPipeline(db)
+    metrics.inc("ingest_requests")
+
+    background_tasks.add_task(ingestion.process_url, document)
+
+    return document
+
+
 @router.get("/documents", response_model=list[DocumentRead], tags=["ingestion"])
 async def list_documents(
     kb_id: str | None = None,
@@ -283,6 +315,7 @@ async def rag_query(
         payload.top_k,
         payload.max_tokens,
         payload.use_rerank,
+        payload.search_type,
     )
 
     latency_ms = int((time.time() - start_time) * 1000)
