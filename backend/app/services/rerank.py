@@ -1,7 +1,7 @@
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from app.core.config import get_settings
+from app.core.config import settings
 
 if TYPE_CHECKING:
     from sentence_transformers.cross_encoder import CrossEncoder
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class RerankingService:
     def __init__(self) -> None:
-        self.settings = get_settings()
+        self.settings = settings
 
     @cached_property
     def model(self) -> "CrossEncoder":
@@ -20,7 +20,7 @@ class RerankingService:
             raise ImportError("sentence_transformers.cross_encoder is not installed. Please install it with `pip install sentence-transformers`.") from exc
 
         # Use a default model if not configured, for easier local setup.
-        model_name = self.settings.reranker_model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        model_name = self.settings.RERANKER_MODEL_NAME or "cross-encoder/ms-marco-MiniLM-L-6-v2"
         return CrossEncoder(model_name)
 
     def score_and_sort(self, query: str, contents: list[str]) -> list[int]:

@@ -4,16 +4,16 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response, JSONResponse
 
 from app.api import routes
-from app.core.config import get_settings
+from app.core.config import settings
+from app.core.exceptions import AppException
 from app.db.session import Base, engine
 from app.services.embeddings import EmbeddingService
 from app.observability import http_request_latency_ms, http_requests_total, metrics
 
-settings = get_settings()
 logger = logging.getLogger("rag-app")
 
 
@@ -34,6 +34,28 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.include_router(routes.router)
+
+    @app.exception_handler(AppException)
+    async def app_exception_handler(request: Request, exc: AppException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        logger.error(f"An unexpected error occurred: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     @app.middleware("http")
     async def add_request_context(request: Request, call_next) -> Response:  # type: ignore[override]

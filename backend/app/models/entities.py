@@ -6,10 +6,8 @@ from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config import get_settings
+from app.core.config import settings
 from app.db.session import Base
-
-settings = get_settings()
 
 # Basic DB portability: fall back to generic types when not using Postgres/pgvector (e.g., SQLite in tests).
 IS_SQLITE = settings.database_url.startswith("sqlite")

@@ -13,6 +13,12 @@ Configurable LLM client (stub by default; OpenAI/Groq supported)
 Basic request logging + response timing headers  
 Deployable via Docker, Render, Fly.io
 
+✨ Recent Changes
+
+*   **Hybrid Search and Configurable Search Types**: The `/rag/query` endpoint now supports `vector`, `full_text`, and `hybrid` search strategies, with `hybrid` being the default. This allows for more flexible and powerful retrieval.
+*   **Improved Configuration Management**: Switched from `.env` files to `Dynaconf` for a more robust and flexible configuration system. Settings are now loaded from `settings.toml` (defaults) and `.secrets.toml` (sensitive data), with environment variables providing overrides (e.g., `RAG_LLM_PROVIDER`).
+*   **Enhanced Error Handling**: Implemented a global exception handler and custom exception classes (`AppException`, `NotFoundError`, `ValidationError`, `UnauthorizedError`) to provide consistent and informative API error responses.
+
 📂 Project Structure
 
 backend/       → FastAPI app & core services  
@@ -21,7 +27,7 @@ docker-compose.yml
 
 🏁 Getting Started (local)
 
-- Copy `.env.example` to `.env` and set secrets (at least `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`).  
+- The application is configured using `settings.toml` for default settings and `.secrets.toml` for secrets. You can override any setting using environment variables with the `RAG_` prefix (e.g., `RAG_LLM_PROVIDER=openai`).
 - Install Python 3.11+.  
 - Install deps: `pip install -r requirements.txt` (set `PYTHONPATH=backend` when running locally).  
 - Run API: `uvicorn app.main:app --app-dir backend --reload`.  

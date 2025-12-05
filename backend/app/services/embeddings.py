@@ -4,12 +4,12 @@ from typing import Iterable
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from app.core.config import get_settings
+from app.core.config import settings
 
 
 class EmbeddingService:
     def __init__(self) -> None:
-        self.settings = get_settings()
+        self.settings = settings
 
     @cached_property
     def model(self) -> SentenceTransformer:

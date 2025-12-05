@@ -4,10 +4,10 @@ import pptx
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes import _parse_metadata
 from app.services.ingestion import IngestionPipeline
+from app.core.exceptions import ValidationError
 
 
 class DummyDB:
@@ -81,5 +81,5 @@ def test_chunk_text_allows_short_docs():
 def test_parse_metadata_valid_and_invalid():
     assert _parse_metadata('{"a":1}') == {"a": 1}
     assert _parse_metadata("") is None
-    with pytest.raises(HTTPException):
+    with pytest.raises(ValidationError):
         _parse_metadata("not-json")

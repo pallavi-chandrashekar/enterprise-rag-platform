@@ -5,10 +5,11 @@ from typing import Iterable, Optional
 from uuid import UUID
 
 import requests
-from fastapi import HTTPException, status
+from fastapi import status
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import AppException
 from app.models.entities import Chunk, Document
 from app.services.embeddings import EmbeddingService
 
@@ -104,21 +105,21 @@ class IngestionPipeline:
             try:
                 from pypdf import PdfReader
             except ImportError as exc:  # pragma: no cover - runtime guard
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="pypdf not installed") from exc
+                raise AppException(detail="pypdf not installed", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) from exc
             reader = PdfReader(io.BytesIO(data))
             return "\n".join(page.extract_text() or "" for page in reader.pages)
         if ext == ".docx":
             try:
                 import docx
             except ImportError as exc:  # pragma: no cover - runtime guard
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="python-docx not installed") from exc
+                raise AppException(detail="python-docx not installed", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) from exc
             doc = docx.Document(io.BytesIO(data))
             return "\n".join(p.text for p in doc.paragraphs)
         if ext == ".pptx":
             try:
                 import pptx
             except ImportError as exc:  # pragma: no cover - runtime guard
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="python-pptx not installed") from exc
+                raise AppException(detail="python-pptx not installed", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) from exc
             prs = pptx.Presentation(io.BytesIO(data))
             text_runs = []
             for slide in prs.slides:

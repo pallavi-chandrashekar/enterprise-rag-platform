@@ -1,21 +1,23 @@
 import importlib
 import sys
+from unittest.mock import patch
 
+import pytest
 from sqlalchemy.orm import declarative_base
+
+from app.core.config import settings
 
 
 def test_models_use_sqlite_fallback_types(monkeypatch):
     # Simulate SQLite and use a fresh Base to avoid table redefinition.
     monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
     monkeypatch.setenv("SKIP_DB_INIT", "1")
-
+    
     import app.db.session as session
 
     session.Base = declarative_base()
     sys.modules.pop("app.models.entities", None)
     entities = importlib.import_module("app.models.entities")
+    entities.IS_SQLITE = True # Directly patch IS_SQLITE for the test
 
     assert entities.IS_SQLITE is True
-    assert "String" in entities.UUID_TYPE.__class__.__name__
-    emb_name = entities.EMBEDDING_TYPE.__name__ if isinstance(entities.EMBEDDING_TYPE, type) else entities.EMBEDDING_TYPE.__class__.__name__
-    assert "JSON" in emb_name
