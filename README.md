@@ -1,4 +1,4 @@
-#Enterprise RAG Platform
+# Enterprise RAG Platform
 
 A production-grade, multi-tenant Retrieval-Augmented Generation (RAG) platform built with FastAPI, PostgreSQL, PGVector, LLM orchestration, and a modular architecture that mirrors how real companies build AI platforms.
 
