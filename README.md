@@ -13,6 +13,12 @@ Configurable LLM client (stub by default; OpenAI/Groq supported)
 Basic request logging + response timing headers  
 Deployable via Docker, Render, Fly.io
 
+✨ Recent Changes
+
+*   **Hybrid Search and Configurable Search Types**: The `/rag/query` endpoint now supports `vector`, `full_text`, and `hybrid` search strategies, with `hybrid` being the default. This allows for more flexible and powerful retrieval.
+*   **Improved Configuration Management**: Switched from `.env` files to `Dynaconf` for a more robust and flexible configuration system. Settings are now loaded from `settings.toml` (defaults) and `.secrets.toml` (sensitive data), with environment variables providing overrides (e.g., `RAG_LLM_PROVIDER`).
+*   **Enhanced Error Handling**: Implemented a global exception handler and custom exception classes (`AppException`, `NotFoundError`, `ValidationError`, `UnauthorizedError`) to provide consistent and informative API error responses.
+
 📂 Project Structure
 
 backend/       → FastAPI app & core services  
