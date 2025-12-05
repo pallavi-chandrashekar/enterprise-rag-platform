@@ -1,6 +1,7 @@
 [default]
 app_name = "Enterprise RAG Platform"
 environment = "local"
+database_url = "postgresql+psycopg://rag_user:changeme@db:5432/rag_db" # Added default database URL
 jwt_secret = "changeme"
 jwt_algorithm = "HS256"
 embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
