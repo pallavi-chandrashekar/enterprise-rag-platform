@@ -20,7 +20,7 @@ class RerankingService:
             raise ImportError("sentence_transformers.cross_encoder is not installed. Please install it with `pip install sentence-transformers`.") from exc
 
         # Use a default model if not configured, for easier local setup.
-        model_name = self.settings.reranker_model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        model_name = self.settings.RERANKER_MODEL_NAME or "cross-encoder/ms-marco-MiniLM-L-6-v2"
         return CrossEncoder(model_name)
 
     def score_and_sort(self, query: str, contents: list[str]) -> list[int]:

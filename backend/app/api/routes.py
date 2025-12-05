@@ -3,13 +3,14 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.auth.deps import get_current_tenant
 from app.core.config import settings
+from app.core.exceptions import NotFoundError, ValidationError
 from app.models.entities import Chunk, Document, KnowledgeBase, Tenant
 from app.observability import http_request_latency_ms, http_requests_total, metrics
 from app.schemas.models import (
@@ -43,7 +44,7 @@ def _get_or_create_tenant(db: Session, tenant_id: str) -> Tenant:
     try:
         tenant_uuid = uuid.UUID(tenant_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tenant_id is not a valid UUID")
+        raise ValidationError(detail="tenant_id is not a valid UUID")
 
     tenant = db.get(Tenant, tenant_uuid)
     if tenant:
@@ -91,11 +92,11 @@ async def delete_kb(
     try:
         kb_uuid = uuid.UUID(kb_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+        raise ValidationError(detail="kb_id is not a valid UUID")
 
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
     if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+        raise NotFoundError(detail="Knowledge base not found for tenant")
 
     db.delete(kb)
     db.commit()
@@ -113,7 +114,7 @@ def _parse_metadata(metadata_json: str | None) -> dict[str, Any] | None:
             raise ValueError("metadata must be a JSON object")
         return value
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid metadata JSON: {exc.msg}")
+        raise ValidationError(detail=f"Invalid metadata JSON: {exc.msg}")
 
 
 @router.post("/ingest", response_model=DocumentRead, tags=["ingestion"])
@@ -132,11 +133,11 @@ async def ingest_document(
     try:
         kb_uuid = uuid.UUID(kb_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+        raise ValidationError(detail="kb_id is not a valid UUID")
 
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
     if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+        raise NotFoundError(detail="Knowledge base not found for tenant")
 
     # Idempotency: if key provided, reuse or retry the same document for this tenant/kb.
     document: Document
@@ -192,11 +193,11 @@ async def ingest_url(
     try:
         kb_uuid = uuid.UUID(payload.kb_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+        raise ValidationError(detail="kb_id is not a valid UUID")
 
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
     if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+        raise NotFoundError(detail="Knowledge base not found for tenant")
 
     document = Document(tenant_id=tenant.id, kb_id=kb.id, filename=payload.url, status="PROCESSING", doc_metadata=payload.metadata)
     db.add(document)
@@ -223,7 +224,7 @@ async def list_documents(
         try:
             kb_uuid = uuid.UUID(kb_id)
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+            raise ValidationError(detail="kb_id is not a valid UUID")
         query = query.filter(Document.kb_id == kb_uuid)
     return query.order_by(Document.created_at.desc()).all()
 
@@ -238,7 +239,7 @@ async def get_document(
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="document_id is not a valid UUID")
+        raise ValidationError(detail="document_id is not a valid UUID")
 
     doc = (
         db.query(Document)
@@ -246,7 +247,7 @@ async def get_document(
         .first()
     )
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found for tenant")
+        raise NotFoundError(detail="Document not found for tenant")
     return doc
 
 
@@ -260,7 +261,7 @@ async def list_document_chunks(
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="document_id is not a valid UUID")
+        raise ValidationError(detail="document_id is not a valid UUID")
 
     doc = (
         db.query(Document)
@@ -268,7 +269,7 @@ async def list_document_chunks(
         .first()
     )
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found for tenant")
+        raise NotFoundError(detail="Document not found for tenant")
 
     chunks = (
         db.query(Chunk)
@@ -298,11 +299,11 @@ async def rag_query(
     try:
         kb_uuid = uuid.UUID(payload.kb_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_id is not a valid UUID")
+        raise ValidationError(detail="kb_id is not a valid UUID")
 
     kb_exists = db.query(KnowledgeBase.id).filter(KnowledgeBase.id == kb_uuid, KnowledgeBase.tenant_id == tenant.id).first()
     if not kb_exists:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found for tenant")
+        raise NotFoundError(detail="Knowledge base not found for tenant")
 
     start_time = time.time()
     request_start = start_time

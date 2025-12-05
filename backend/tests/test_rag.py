@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
@@ -15,13 +15,13 @@ def test_reranking_service_sorts_indices():
     # Mock scores where doc3 is best, doc1 is second, doc2 is worst.
     mock_scores = [0.2, 0.1, 0.8]
 
-    with patch.object(reranker, "model") as mock_model:
-        mock_model.predict.return_value = mock_scores
+    with patch('app.services.rerank.RerankingService.model', new_callable=PropertyMock) as mock_model:
+        mock_model.return_value.predict.return_value = mock_scores
         sorted_indices = reranker.score_and_sort(query, contents)
 
         # Expect indices to be sorted by score: [2, 0, 1]
         assert sorted_indices == [2, 0, 1]
-        mock_model.predict.assert_called_once()
+        mock_model.return_value.predict.assert_called_once()
 
 
 def test_rag_service_with_rerank():
