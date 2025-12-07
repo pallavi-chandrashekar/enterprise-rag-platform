@@ -72,3 +72,14 @@ class RAGQueryResponse(BaseModel):
     answer: str
     sources: list[RAGSource]
     latency_ms: int
+
+
+class TokenRequest(BaseModel):
+    tenant_name: str = Field(..., min_length=1, max_length=255)
+
+
+class TokenResponse(BaseModel):
+    token: str
+    tenant_id: uuid.UUID
+    tenant_name: str
+    expires_at: datetime

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Enterprise RAG Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div>
+          <h1>Enterprise RAG Console</h1>
+          <div class="muted">Admin panel for tenants, ingestion, and querying</div>
+        </div>
+        <div class="flex">
+          <span class="pill">Multi-tenant</span>
+          <span class="pill">Hybrid search</span>
+          <a class="pill button-ghost" href="/docs" target="_blank" rel="noreferrer">Open API docs</a>
+        </div>
+      </header>
+
+      <div class="grid" style="margin-top: 20px">
+        <section class="card">
+          <h2>Sign in / Create tenant</h2>
+          <form id="login-form">
+            <label>
+              Tenant name
+              <input id="tenant-name" placeholder="acme-inc" required />
+            </label>
+            <button type="submit">Mint token</button>
+            <div class="status" id="login-status"></div>
+          </form>
+          <div class="list" id="auth-info" style="margin-top: 12px; display: none">
+            <div class="chip">Tenant ID: <span id="tenant-id"></span></div>
+            <div class="chip">JWT saved locally</div>
+            <button id="logout-btn" class="button-ghost" type="button">Clear token</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Knowledge bases</h2>
+          <form id="kb-form">
+            <label>
+              Name
+              <input id="kb-name" placeholder="Product Docs" required />
+            </label>
+            <label>
+              Description
+              <input id="kb-desc" placeholder="What this KB is for" />
+            </label>
+            <button type="submit">Create KB</button>
+          </form>
+          <div class="list" id="kb-list"></div>
+        </section>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Ingest files</h2>
+          <form id="ingest-form">
+            <label>
+              Knowledge base
+              <select id="ingest-kb"></select>
+            </label>
+            <label>
+              File
+              <input id="ingest-file" type="file" />
+            </label>
+            <label>
+              Metadata (JSON, optional)
+              <input id="ingest-meta" placeholder='{"source":"upload"}' />
+            </label>
+            <button type="submit">Upload & process</button>
+          </form>
+          <div class="status" id="ingest-status"></div>
+        </section>
+
+        <section class="card">
+          <h2>Ingest by URL</h2>
+          <form id="url-form">
+            <label>
+              Knowledge base
+              <select id="url-kb"></select>
+            </label>
+            <label>
+              URL
+              <input id="url-input" type="url" placeholder="https://example.com/page" />
+            </label>
+            <button type="submit">Fetch & process</button>
+          </form>
+          <div class="status" id="url-status"></div>
+        </section>
+      </div>
+
+      <section class="card" style="margin-top: 18px">
+        <h2>RAG query</h2>
+        <form id="query-form">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <label>
+              Knowledge base
+              <select id="query-kb"></select>
+            </label>
+            <label>
+              Search type
+              <select id="query-search">
+                <option value="hybrid">Hybrid (default)</option>
+                <option value="vector">Vector only</option>
+                <option value="full_text">Full text</option>
+              </select>
+            </label>
+            <label>
+              Top K
+              <input id="query-topk" type="number" min="1" max="10" value="5" />
+            </label>
+            <label>
+              Max tokens
+              <input id="query-max" type="number" min="32" max="512" value="128" />
+            </label>
+            <label class="flex" style="align-items: center; margin-top: 8px;">
+              <input id="query-rerank" type="checkbox" checked />
+              <span class="muted">Use reranker</span>
+            </label>
+          </div>
+          <label>
+            Question
+            <textarea id="query-text" rows="3" placeholder="Ask a question using your KB..."></textarea>
+          </label>
+          <button type="submit">Ask</button>
+        </form>
+        <div class="status" id="query-status"></div>
+        <div class="answer" id="answer" style="display: none"></div>
+        <div class="sources" id="sources"></div>
+      </section>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

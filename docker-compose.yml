@@ -34,5 +34,18 @@ services:
       - db
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  ui:
+    image: nginx:1.27-alpine
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./backend/app/static:/usr/share/nginx/html:ro
+      - ./docker/ui.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
+    # UI served on :8080, proxies API calls to the backend service on :8000.
+
 volumes:
   rag_data:
