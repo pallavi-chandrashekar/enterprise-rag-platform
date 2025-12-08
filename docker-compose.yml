@@ -20,14 +20,14 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_user:changeme@db:5432/rag_db}
-      JWT_SECRET: ${JWT_SECRET:-changeme}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
-      VECTOR_DIMENSION: ${VECTOR_DIMENSION:-384}
-      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
-      LLM_MODEL: ${LLM_MODEL:-stub-v1}
-      LLM_API_KEY: ${LLM_API_KEY:-}
+      RAG_DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rag_user:changeme@db:5432/rag_db}
+      RAG_JWT_SECRET: ${JWT_SECRET:-changeme}
+      RAG_JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      RAG_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      RAG_VECTOR_DIMENSION: ${VECTOR_DIMENSION:-384}
+      RAG_LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      RAG_LLM_MODEL: ${LLM_MODEL:-stub-v1}
+      RAG_LLM_API_KEY: ${LLM_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
