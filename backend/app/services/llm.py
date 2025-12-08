@@ -15,18 +15,18 @@ class LLMClient:
         self.settings = settings
 
     def generate(self, prompt: str, max_tokens: int = 128) -> str:
-        provider = (self.settings.llm_provider or "stub").lower()
+        provider = (self.settings.LLM_PROVIDER or "stub").lower()
         if provider == "stub":
             return f"[stubbed llm reply]\nPrompt was:\n{prompt[:500]}"
 
-        api_key = self.settings.llm_api_key
+        api_key = self.settings.LLM_API_KEY
         if not api_key:
             raise ValueError("LLM API key is not configured")
 
         url = self._provider_url(provider)
         headers = {"Authorization": f"Bearer {api_key}"}
         payload = {
-            "model": self.settings.llm_model,
+            "model": self.settings.LLM_MODEL,
             "messages": [
                 {"role": "system", "content": "You answer with concise, grounded responses using provided context."},
                 {"role": "user", "content": prompt},

@@ -53,7 +53,7 @@ async def issue_token(
     expires_at = datetime.utcnow() + timedelta(hours=24)
     token = jwt.encode(
         {"tenant_id": str(tenant.id), "tenant_name": tenant.name, "exp": expires_at},
-        settings.jwt_secret,
+        settings.JWT_SECRET,
         algorithm=settings.jwt_algorithm,
     )
     return TokenResponse(token=token, tenant_id=tenant.id, tenant_name=tenant.name, expires_at=expires_at)
@@ -364,8 +364,8 @@ async def rag_query(
 @router.get("/settings", tags=["debug"])
 async def read_settings() -> dict[str, str | int]:
     return {
-        "app_name": settings.app_name,
-        "environment": settings.environment,
-        "vector_dimension": settings.vector_dimension,
+        "app_name": settings.APP_NAME,
+        "environment": settings.ENVIRONMENT,
+        "vector_dimension": settings.VECTOR_DIMENSION,
         "metrics": metrics.snapshot(),
     }

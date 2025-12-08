@@ -15,7 +15,7 @@ def get_current_tenant(creds: HTTPAuthorizationCredentials | None = Security(sec
 
     token = creds.credentials
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except JWTError:
         raise UnauthorizedError(detail="Invalid token")
 

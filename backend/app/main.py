@@ -34,7 +34,8 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app_title = getattr(settings, "app_name", "Enterprise RAG Platform")
+    app = FastAPI(title=app_title, lifespan=lifespan)
     app.include_router(routes.router)
 
     static_dir = Path(__file__).resolve().parent / "static"

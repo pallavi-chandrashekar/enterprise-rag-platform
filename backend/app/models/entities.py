@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.db.session import Base
 
 # Basic DB portability: fall back to generic types when not using Postgres/pgvector (e.g., SQLite in tests).
-IS_SQLITE = settings.database_url.startswith("sqlite")
+IS_SQLITE = settings.DATABASE_URL.startswith("sqlite")
 
 if IS_SQLITE:
     from sqlalchemy import JSON
@@ -24,7 +24,7 @@ else:
 
     UUID_TYPE = UUID(as_uuid=True)
     JSON_TYPE = JSONB
-    EMBEDDING_TYPE = Vector(dim=settings.vector_dimension)
+    EMBEDDING_TYPE = Vector(dim=settings.VECTOR_DIMENSION)
     TSVECTOR_TYPE = TSVECTOR
 
 
