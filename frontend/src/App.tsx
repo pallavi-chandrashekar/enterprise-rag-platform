@@ -132,7 +132,10 @@ function App() {
       setIngestStatus("Ingestion started");
       setIngestFile(null);
       setIngestMeta("");
-      (document.getElementById("ingest-file") as HTMLInputElement | null)?.value = "";
+      const ingestFileElement = document.getElementById("ingest-file") as HTMLInputElement | null;
+      if (ingestFileElement) {
+        ingestFileElement.value = "";
+      }
     } catch (err) {
       setIngestStatus(err instanceof Error ? err.message : "Upload failed");
     }
