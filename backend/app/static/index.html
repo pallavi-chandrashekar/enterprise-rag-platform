@@ -20,9 +20,9 @@
         </div>
       </header>
 
-      <div class="grid" style="margin-top: 20px">
+      <div class="grid" style="margin-top: 14px">
         <section class="card">
-          <h2>Sign in / Create tenant</h2>
+          <h2>Tenant</h2>
           <form id="login-form">
             <label>
               Tenant name
@@ -31,7 +31,7 @@
             <button type="submit">Mint token</button>
             <div class="status" id="login-status"></div>
           </form>
-          <div class="list" id="auth-info" style="margin-top: 12px; display: none">
+          <div class="list" id="auth-info" style="margin-top: 10px; display: none">
             <div class="chip">Tenant ID: <span id="tenant-id"></span></div>
             <div class="chip">JWT saved locally</div>
             <button id="logout-btn" class="button-ghost" type="button">Clear token</button>
@@ -39,7 +39,7 @@
         </section>
 
         <section class="card">
-          <h2>Knowledge bases</h2>
+          <h2>Knowledge base</h2>
           <form id="kb-form">
             <label>
               Name
@@ -47,17 +47,15 @@
             </label>
             <label>
               Description
-              <input id="kb-desc" placeholder="What this KB is for" />
+              <input id="kb-desc" placeholder="Optional" />
             </label>
             <button type="submit">Create KB</button>
           </form>
           <div class="list" id="kb-list"></div>
         </section>
-      </div>
 
-      <div class="grid">
         <section class="card">
-          <h2>Ingest files</h2>
+          <h2>Ingest file</h2>
           <form id="ingest-form">
             <label>
               Knowledge base
@@ -71,13 +69,13 @@
               Metadata (JSON, optional)
               <input id="ingest-meta" placeholder='{"source":"upload"}' />
             </label>
-            <button type="submit">Upload & process</button>
+            <button type="submit">Upload</button>
           </form>
           <div class="status" id="ingest-status"></div>
         </section>
 
         <section class="card">
-          <h2>Ingest by URL</h2>
+          <h2>Ingest URL</h2>
           <form id="url-form">
             <label>
               Knowledge base
@@ -87,14 +85,14 @@
               URL
               <input id="url-input" type="url" placeholder="https://example.com/page" />
             </label>
-            <button type="submit">Fetch & process</button>
+            <button type="submit">Fetch</button>
           </form>
           <div class="status" id="url-status"></div>
         </section>
       </div>
 
-      <section class="card" style="margin-top: 18px">
-        <h2>RAG query</h2>
+      <section class="card" style="margin-top: 14px">
+        <h2>Query</h2>
         <form id="query-form">
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
             <label>

@@ -35,6 +35,12 @@ PYTHONPATH=backend uvicorn app.main:app --app-dir backend --reload
 - Requires Python 3.11+ and a running Postgres that matches `database_url` in `settings.toml` (or override via env).
 - Admin console served from `http://localhost:8000/ui` when the server is running.
 
+**Frontend (React)**
+- Requires Node 18+.
+- Install deps: `cd frontend && npm install`
+- Dev server: `npm run dev` (defaults to `http://localhost:5173`, calls API on `http://localhost:8000`)
+- Build static assets into the API: `npm run build` (outputs to `backend/app/static`)
+
 ## Configuration
 - Defaults: `settings.toml`
 - Secrets: `.secrets.toml` (not in git)
