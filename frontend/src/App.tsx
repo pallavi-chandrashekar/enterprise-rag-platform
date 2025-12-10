@@ -41,6 +41,11 @@ function App() {
   const [sources, setSources] = useState<RAGSource[]>([]);
 
   const hasAuth = Boolean(token);
+  const readyForActions = hasAuth && kbs.length > 0;
+  const activeKbName = useMemo(
+    () => kbs.find((kb) => kb.id === queryKbId || ingestKbId || urlKbId)?.name || "None selected",
+    [ingestKbId, kbs, queryKbId, urlKbId]
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -209,6 +214,20 @@ function App() {
         </div>
       </header>
 
+      <div className="banner" style={{ marginTop: 14 }}>
+        <div>
+          <h3>Status</h3>
+          <div className="muted">
+            {hasAuth ? `Signed in as ${tenantName || tenantId}` : "Not signed in. Mint a token to start."}
+          </div>
+        </div>
+        <div className="banner-meta">
+          <span className="chip">KBs: {kbs.length}</span>
+          <span className="chip">Active KB: {activeKbName}</span>
+          {!readyForActions && <span className="chip" style={{ color: "var(--danger)" }}>Setup required</span>}
+        </div>
+      </div>
+
       <div className="tabs">
         <button className={`tab-btn ${tab === "setup" ? "active" : ""}`} onClick={() => setTab("setup")}>
           Setup
@@ -231,7 +250,7 @@ function App() {
                 <input value={tenantInput} onChange={(e) => setTenantInput(e.target.value)} placeholder="acme-inc" required />
               </label>
               <button type="submit">Mint token</button>
-              <div className="status">{status}</div>
+              <div className={`status ${status.toLowerCase().includes("token") ? "success" : ""}`}>{status}</div>
             </form>
             {hasAuth && (
               <div className="list" style={{ marginTop: 10 }}>
@@ -242,6 +261,7 @@ function App() {
                 </button>
               </div>
             )}
+            <div className="hint">Tokens are tenant-scoped. Use different names for separate tenants.</div>
           </section>
 
           <section className="card">
@@ -260,7 +280,7 @@ function App() {
               </button>
             </form>
             <div className="list">
-              {kbs.length === 0 && <div className="muted">No KBs yet.</div>}
+              {kbs.length === 0 && <div className="muted">No KBs yet. Create one to start ingesting.</div>}
               {kbs.map((kb) => (
                 <div key={kb.id} className="item">
                   <div>
@@ -273,6 +293,7 @@ function App() {
                 </div>
               ))}
             </div>
+            <div className="hint">Tip: Create separate KBs for distinct domains (e.g., product docs vs. policies).</div>
           </section>
         </div>
       </div>
@@ -284,7 +305,9 @@ function App() {
             <form onSubmit={handleIngestFile}>
               <label>
                 Knowledge base
-                <select value={ingestKbId} onChange={(e) => setIngestKbId(e.target.value)}>{kbOptions}</select>
+                <select value={ingestKbId} onChange={(e) => setIngestKbId(e.target.value)} disabled={!readyForActions}>
+                  {kbOptions}
+                </select>
               </label>
               <label>
                 File
@@ -294,11 +317,12 @@ function App() {
                 Metadata (JSON, optional)
                 <input value={ingestMeta} onChange={(e) => setIngestMeta(e.target.value)} placeholder='{"source":"upload"}' />
               </label>
-              <button type="submit" disabled={!hasAuth}>
+              <button type="submit" disabled={!readyForActions}>
                 Upload
               </button>
             </form>
             <div className="status">{ingestStatus}</div>
+            <div className="hint">Uploads run in the background. Check `/documents` for status.</div>
           </section>
 
           <section className="card">
@@ -306,17 +330,20 @@ function App() {
             <form onSubmit={handleIngestUrl}>
               <label>
                 Knowledge base
-                <select value={urlKbId} onChange={(e) => setUrlKbId(e.target.value)}>{kbOptions}</select>
+                <select value={urlKbId} onChange={(e) => setUrlKbId(e.target.value)} disabled={!readyForActions}>
+                  {kbOptions}
+                </select>
               </label>
               <label>
                 URL
                 <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} type="url" placeholder="https://example.com/page" />
               </label>
-              <button type="submit" disabled={!hasAuth}>
+              <button type="submit" disabled={!readyForActions}>
                 Fetch
               </button>
             </form>
             <div className="status">{urlStatus}</div>
+            <div className="hint">For noisy pages, prefer the file upload with cleaned content.</div>
           </section>
         </div>
       </div>
@@ -328,7 +355,9 @@ function App() {
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               <label>
                 Knowledge base
-                <select value={queryKbId} onChange={(e) => setQueryKbId(e.target.value)}>{kbOptions}</select>
+                <select value={queryKbId} onChange={(e) => setQueryKbId(e.target.value)} disabled={!readyForActions}>
+                  {kbOptions}
+                </select>
               </label>
               <label>
                 Search type
@@ -355,7 +384,7 @@ function App() {
               Question
               <textarea value={queryText} onChange={(e) => setQueryText(e.target.value)} rows={3} placeholder="Ask a question using your KB..." />
             </label>
-            <button type="submit" disabled={!hasAuth}>
+            <button type="submit" disabled={!readyForActions}>
               Ask
             </button>
           </form>
