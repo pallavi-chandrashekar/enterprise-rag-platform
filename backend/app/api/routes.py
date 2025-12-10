@@ -1,10 +1,12 @@
 import json
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status, BackgroundTasks
 from fastapi.responses import PlainTextResponse
+from jose import jwt
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -21,6 +23,8 @@ from app.schemas.models import (
     RAGQueryResponse,
     RAGSource,
     URLIngestRequest,
+    TokenRequest,
+    TokenResponse,
 )
 from app.services.ingestion import IngestionPipeline
 from app.services.rag import RAGService
@@ -40,6 +44,21 @@ async def metrics_endpoint() -> PlainTextResponse:
     return PlainTextResponse(generate_latest(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
+@router.post("/auth/token", response_model=TokenResponse, tags=["auth"])
+async def issue_token(
+    payload: TokenRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    tenant = _get_or_create_tenant_by_name(db, payload.tenant_name)
+    expires_at = datetime.utcnow() + timedelta(hours=24)
+    token = jwt.encode(
+        {"tenant_id": str(tenant.id), "tenant_name": tenant.name, "exp": expires_at},
+        settings.JWT_SECRET,
+        algorithm=settings.jwt_algorithm,
+    )
+    return TokenResponse(token=token, tenant_id=tenant.id, tenant_name=tenant.name, expires_at=expires_at)
+
+
 def _get_or_create_tenant(db: Session, tenant_id: str) -> Tenant:
     try:
         tenant_uuid = uuid.UUID(tenant_id)
@@ -51,6 +70,22 @@ def _get_or_create_tenant(db: Session, tenant_id: str) -> Tenant:
         return tenant
 
     tenant = Tenant(id=tenant_uuid, name=f"tenant-{tenant_id}")
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+    return tenant
+
+
+def _get_or_create_tenant_by_name(db: Session, tenant_name: str) -> Tenant:
+    clean_name = tenant_name.strip()
+    if not clean_name:
+        raise ValidationError(detail="tenant_name is required")
+
+    tenant = db.query(Tenant).filter(Tenant.name == clean_name).first()
+    if tenant:
+        return tenant
+
+    tenant = Tenant(name=clean_name)
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
@@ -329,8 +364,8 @@ async def rag_query(
 @router.get("/settings", tags=["debug"])
 async def read_settings() -> dict[str, str | int]:
     return {
-        "app_name": settings.app_name,
-        "environment": settings.environment,
-        "vector_dimension": settings.vector_dimension,
+        "app_name": settings.APP_NAME,
+        "environment": settings.ENVIRONMENT,
+        "vector_dimension": settings.VECTOR_DIMENSION,
         "metrics": metrics.snapshot(),
     }

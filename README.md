@@ -24,6 +24,7 @@ docker-compose up --build
 ```
 - Starts Postgres with PGVector and the API on `http://localhost:8000`.
 - Extension auto-enabled by `db/init/01-enable-vector.sql`.
+- Admin console served at `http://localhost:8080` (via nginx) or `http://localhost:8000/ui` (directly from the API).
 
 **Local Python**
 ```bash
@@ -32,6 +33,13 @@ pip install -r requirements.txt
 PYTHONPATH=backend uvicorn app.main:app --app-dir backend --reload
 ```
 - Requires Python 3.11+ and a running Postgres that matches `database_url` in `settings.toml` (or override via env).
+- Admin console served from `http://localhost:8000/ui` when the server is running.
+
+**Frontend (React)**
+- Requires Node 18+.
+- Install deps: `cd frontend && npm install`
+- Dev server: `npm run dev` (defaults to `http://localhost:5173`, calls API on `http://localhost:8000`)
+- Build static assets into the API: `npm run build` (outputs to `backend/app/static`)
 
 ## Configuration
 - Defaults: `settings.toml`
@@ -51,6 +59,7 @@ PYTHONPATH=backend uvicorn app.main:app --app-dir backend --reload
 - `POST /rag/query` — body: `{ "kb_id": "...", "query": "...", "top_k": 5, "max_tokens": 128, "use_rerank": true, "search_type": "hybrid" }`.
   - `search_type`: `vector` | `full_text` | `hybrid` (default).
   - `use_rerank`: true by default.
+- `POST /auth/token` — body: `{ "tenant_name": "acme-inc" }` → returns `{ token, tenant_id, tenant_name, expires_at }`.
 - Auth: `Authorization: Bearer <jwt-with-tenant_id>`.
 - Settings peek: `GET /settings`.
 
@@ -78,6 +87,7 @@ flowchart TD
 - `backend/app` — FastAPI app, routers, services (ingestion, embeddings, rerank, RAG), auth deps, observability, config.
 - `backend/alembic` — migrations.
 - `backend/scripts` — utilities (e.g., JWT generator).
+- `backend/app/static` — zero-build admin console served at `/ui`.
 - `db/init` — PGVector init SQL.
 - `docs` — architecture notes/diagram.
 - `docker-compose.yml` — API + Postgres stack.

@@ -3,9 +3,11 @@ import os
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import routes
 from app.core.config import settings
@@ -32,8 +34,17 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app_title = getattr(settings, "app_name", "Enterprise RAG Platform")
+    app = FastAPI(title=app_title, lifespan=lifespan)
     app.include_router(routes.router)
+
+    static_dir = Path(__file__).resolve().parent / "static"
+    if static_dir.exists():
+        app.mount("/ui", StaticFiles(directory=static_dir, html=True), name="ui")
+
+        @app.get("/", include_in_schema=False)
+        async def serve_index() -> FileResponse:
+            return FileResponse(static_dir / "index.html")
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
