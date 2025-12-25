@@ -4,6 +4,7 @@ import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
+  base: "/ui/",
   build: {
     outDir: resolve(__dirname, "../backend/app/static"),
     emptyOutDir: true,

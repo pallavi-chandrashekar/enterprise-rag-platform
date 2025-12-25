@@ -142,6 +142,12 @@ h1 {
   font-size: 1.05rem;
 }
 
+.card h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
 form {
   display: grid;
   gap: 10px;

@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from jose import jwt
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -14,7 +15,7 @@ from app.auth.deps import get_current_tenant
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.entities import Chunk, Document, KnowledgeBase, Tenant
-from app.observability import http_request_latency_ms, http_requests_total, metrics
+from app.observability import metrics
 from app.schemas.models import (
     DocumentRead,
     KnowledgeBaseCreate,
@@ -35,6 +36,30 @@ router = APIRouter()
 @router.get("/healthz", tags=["health"])
 async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.get("/health/live", tags=["health"])
+async def liveness() -> dict[str, str]:
+    return {"status": "live"}
+
+
+@router.get("/health/ready", tags=["health"])
+async def readiness(db: Session = Depends(get_db)) -> dict[str, str]:
+    # DB connectivity
+    db.execute(text("SELECT 1"))
+    # Embedding availability
+    _ = EmbeddingService().model
+    return {"status": "ready"}
+
+
+@router.get("/errors/recent", tags=["health"])
+async def recent_errors() -> list[dict[str, object]]:
+    return metrics.recent_errors()
+
+
+@router.get("/metrics/summary", tags=["health"])
+async def metrics_summary() -> dict[str, object]:
+    return metrics.snapshot()
 
 
 @router.get("/metrics", response_class=PlainTextResponse, tags=["health"])
@@ -356,8 +381,6 @@ async def rag_query(
 
     latency_ms = int((time.time() - start_time) * 1000)
     metrics.observe_latency("rag_total_ms", latency_ms)
-    http_requests_total.labels("POST", "/rag/query", "200").inc()
-    http_request_latency_ms.labels("POST", "/rag/query").observe(latency_ms)
     return RAGQueryResponse(answer=answer, sources=sources, latency_ms=latency_ms)
 
 

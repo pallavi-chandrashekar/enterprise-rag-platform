@@ -9,9 +9,10 @@ from prometheus_client import Histogram
 from prometheus_client import generate_latest
 
 logger = logging.getLogger("rag-app")
+RECENT_ERROR_LIMIT = 50
 
-http_requests_total = PromCounter("rag_http_requests_total", "Total HTTP requests", ["method", "path", "status"])
-http_request_latency_ms = Histogram("rag_http_request_latency_ms", "HTTP request latency (ms)", ["method", "path"])
+http_requests_total = PromCounter("rag_http_requests_total", "Total HTTP requests", ["method", "path", "status", "tenant"])
+http_request_latency_ms = Histogram("rag_http_request_latency_ms", "HTTP request latency (ms)", ["method", "path", "error_code"])
 ingest_latency_ms = Histogram("rag_ingest_latency_ms", "Ingestion latency (ms)")
 rag_latency_ms = Histogram("rag_rag_latency_ms", "RAG total latency (ms)")
 
@@ -20,6 +21,7 @@ class Metrics:
     def __init__(self) -> None:
         self._counts = Counter()
         self._latency_ms: list[int] = []
+        self._recent_errors: list[dict[str, object]] = []
 
     def inc(self, name: str) -> None:
         self._counts[name] += 1
@@ -40,7 +42,34 @@ class Metrics:
             "counts": dict(self._counts),
             "latency_avg_ms": avg_latency,
             "latency_p95_ms": p95,
+            "error_recent_count": len(self._recent_errors),
         }
+
+    def record_error(
+        self,
+        *,
+        method: str,
+        path: str,
+        status: int,
+        error_code: str,
+        detail: str,
+        correlation_id: str | None,
+    ) -> None:
+        record = {
+            "timestamp": int(time.time() * 1000),
+            "method": method,
+            "path": path,
+            "status": status,
+            "error_code": error_code,
+            "detail": detail,
+            "correlation_id": correlation_id,
+        }
+        self._recent_errors.append(record)
+        if len(self._recent_errors) > RECENT_ERROR_LIMIT:
+            self._recent_errors.pop(0)
+
+    def recent_errors(self) -> list[dict[str, object]]:
+        return list(self._recent_errors)
 
     @contextmanager
     def timeit(self, name: str) -> Iterator[None]:

@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, KnowledgeBase, RAGSource } from "./api";
 
 type Tab = "setup" | "ingest" | "query";
+type RecentError = {
+  timestamp: number;
+  method: string;
+  path: string;
+  status: number;
+  error_code: string;
+  detail: string;
+  correlation_id?: string;
+};
 
 const storageKeys = {
   token: "rag_token",
@@ -39,6 +49,28 @@ function App() {
   const [queryStatus, setQueryStatus] = useState("");
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<RAGSource[]>([]);
+  const [recentErrors, setRecentErrors] = useState<RecentError[]>([]);
+  const [summaryCounts, setSummaryCounts] = useState<Record<string, number | string>>({});
+  const totalRequests = Number(summaryCounts["http_total_ms_count"] || 0);
+  const recentErrorCount = Number(summaryCounts["error_recent_count"] || recentErrors.length || 0);
+  const errorChartData = useMemo(() => {
+    const now = Date.now();
+    const windowMs = 15 * 60 * 1000; // 15 minutes
+    const cutoff = now - windowMs;
+    const buckets: Record<string, number> = {};
+    recentErrors
+      .filter((err) => err.timestamp >= cutoff)
+      .forEach((err) => {
+        const minute = new Date(err.timestamp);
+        minute.setSeconds(0, 0);
+        const label = minute.toISOString().slice(11, 16); // HH:MM
+        buckets[label] = (buckets[label] || 0) + 1;
+      });
+
+    return Object.entries(buckets)
+      .sort(([a], [b]) => (a > b ? 1 : -1))
+      .map(([time, count]) => ({ time, count }));
+  }, [recentErrors]);
 
   const hasAuth = Boolean(token);
   const readyForActions = hasAuth && kbs.length > 0;
@@ -51,6 +83,27 @@ function App() {
     if (!token) return;
     fetchKBs();
   }, [token]);
+
+  useEffect(() => {
+    let interval: number | undefined;
+    const fetchStatus = async () => {
+      try {
+        const [errs, summary] = await Promise.all([
+          fetch("/errors/recent").then((r) => r.json()),
+          fetch("/metrics/summary").then((r) => r.json()),
+        ]);
+        setRecentErrors(errs || []);
+        setSummaryCounts((summary as Record<string, number>)?.counts || {});
+      } catch {
+        /* ignore */
+      }
+    };
+    fetchStatus();
+    interval = window.setInterval(fetchStatus, 8000);
+    return () => {
+      if (interval) window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const firstKb = kbs[0]?.id || "";
@@ -238,6 +291,9 @@ function App() {
         <button className={`tab-btn ${tab === "query" ? "active" : ""}`} onClick={() => setTab("query")}>
           Query
         </button>
+        <button className={`tab-btn ${tab === "status" ? "active" : ""}`} onClick={() => setTab("status")}>
+          Status
+        </button>
       </div>
 
       <div className={`tab-panel ${tab === "setup" ? "active" : ""}`}>
@@ -403,6 +459,63 @@ function App() {
                 <small>Document: {s.document_id}</small>
               </div>
             ))}
+          </div>
+        </section>
+      </div>
+
+      <div className={`tab-panel ${tab === "status" ? "active" : ""}`}>
+        <section className="card" style={{ marginTop: 10 }}>
+          <h2>Status</h2>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <div className="card" style={{ background: "var(--panel)" }}>
+              <h3>At a glance</h3>
+              <div className="list">
+                <div className="item" style={{ background: "transparent", border: "1px solid var(--border)" }}>
+                  <div className="muted">Total requests (since start)</div>
+                  <strong>{totalRequests}</strong>
+                </div>
+                <div className="item" style={{ background: "transparent", border: "1px solid var(--border)" }}>
+                  <div className="muted">Recent errors (buffer)</div>
+                  <strong>{recentErrorCount}</strong>
+                </div>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div className="muted" style={{ marginBottom: 6 }}>Errors over time</div>
+                {errorChartData.length === 0 ? (
+                  <div className="muted">No recent errors.</div>
+                ) : (
+                  <div style={{ width: "100%", height: 180 }}>
+                    <ResponsiveContainer>
+                      <LineChart data={errorChartData}>
+                        <XAxis dataKey="time" stroke="#94a3b8" />
+                        <YAxis allowDecimals={false} stroke="#94a3b8" />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="count" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="card" style={{ background: "var(--panel)" }}>
+              <h3>Recent errors</h3>
+              <div className="list">
+                {recentErrors.length === 0 && <div className="muted">No recent errors.</div>}
+                {recentErrors.map((err) => (
+                  <div key={`${err.timestamp}-${err.correlation_id || ""}`} className="item" style={{ alignItems: "flex-start" }}>
+                    <div>
+                      <div className="muted">
+                        {new Date(err.timestamp).toLocaleTimeString()} • {err.method} {err.path}
+                      </div>
+                      <div style={{ color: "var(--danger)", marginTop: 4 }}>{err.detail}</div>
+                      <div className="muted" style={{ fontSize: "0.85rem" }}>
+                        status {err.status} • code {err.error_code} • cid {err.correlation_id || "n/a"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       </div>

@@ -3,10 +3,10 @@
 This document captures actionable improvements across core modules, focusing on reliability, observability, and safety.
 
 ## API & Application Layer (FastAPI)
-- Split readiness vs. liveness endpoints; wire readiness to dependencies (DB, embeddings) to improve rollout safety.
-- Normalize request/tenant labels in Prometheus metrics to avoid high cardinality; add error code labels to timing metrics.
-- Add structured exception middleware with error IDs and correlation IDs propagated from incoming headers.
-- Provide rate limiting or abuse-protection hooks for public endpoints and admin UI.
+- [x] Split readiness vs. liveness endpoints; readiness checks DB and embeddings.
+- [x] Normalize Prometheus labels (path templates, tenant presence) and add error code labels to timing metrics.
+- [x] Structured exception responses now include error IDs + correlation IDs (honoring inbound correlation headers).
+- [x] Basic rate limit hook (configurable, disabled by default) for public/admin endpoints.
 
 ## Auth & Multi-Tenancy
 - Rotate JWT signing keys via key IDs (kid) in headers; store active keys in configuration for zero-downtime rotation.
