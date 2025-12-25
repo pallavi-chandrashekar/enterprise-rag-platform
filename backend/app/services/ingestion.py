@@ -1,7 +1,7 @@
 import io
 import logging
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union, List, Dict
 from uuid import UUID
 
 import requests
@@ -23,8 +23,8 @@ class IngestionPipeline:
 
     def process_uploaded_file(self, document: Document, file_bytes: bytes) -> None:
         try:
-            text = self._extract_text(document.filename, file_bytes)
-            chunks = self._chunk_text(text)
+            extracted_content = self._extract_text(document.filename, file_bytes)
+            chunks = self._chunk_content(extracted_content)
             if not chunks:
                 raise ValueError("No text found in document")
             self._increment_attempt(document)
@@ -38,8 +38,8 @@ class IngestionPipeline:
 
     def process_url(self, document: Document) -> None:
         try:
-            text = self._extract_text(document.filename)
-            chunks = self._chunk_text(text)
+            extracted_content = self._extract_text(document.filename)
+            chunks = self._chunk_content(extracted_content)
             if not chunks:
                 raise ValueError("No text found in document")
             self._increment_attempt(document)
@@ -81,17 +81,13 @@ class IngestionPipeline:
             self._merge_metadata(doc, {"last_error": reason})
             self.db.add(doc)
 
-    def _extract_text(self, filename: str, data: Optional[bytes] = None) -> str:
+    def _extract_text(self, filename: str, data: Optional[bytes] = None) -> Union[str, List[Dict[str, str]]]:
         if filename.startswith("http"):
             try:
                 response = requests.get(filename, timeout=15)
                 response.raise_for_status()
-                # Use BeautifulSoup to parse the HTML content
-                soup = BeautifulSoup(response.content, "html.parser")
-                for tag in soup(["script", "style"]):
-                    tag.decompose()
-                text = soup.get_text(separator=" ")
-                return " ".join(text.split())
+                data = response.content # Assign response content to data
+                # Now process data as HTML below
             except requests.RequestException as e:
                 raise ValueError(f"Failed to fetch URL {filename}: {e}") from e
 
@@ -130,35 +126,86 @@ class IngestionPipeline:
                         for run in paragraph.runs:
                             text_runs.append(run.text)
             return "\n".join(text_runs)
-        if ext in {".html", ".htm"}:
+        if ext in {".html", ".htm"} or filename.startswith("http"): # Handle URL content as HTML
             soup = BeautifulSoup(data, "html.parser")
-            for tag in soup(["script", "style"]):
+            for tag in soup(["script", "style", "head", "title", "meta", "link"]):
                 tag.decompose()
-            text = soup.get_text(separator=" ")
-            return " ".join(text.split())
+            
+            structured_content: List[Dict[str, str]] = []
+            for tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']:
+                for tag in soup.find_all(tag_name):
+                    text = tag.get_text(separator=" ", strip=True)
+                    if text:
+                        structured_content.append({"type": tag_name, "content": text})
+            return structured_content
         raise ValueError(f"Unsupported file type: {ext or 'unknown'}")
 
-    def _chunk_text(self, text: str, max_words: int = 220, overlap: int = 40) -> list[str]:
-        # Basic word-based chunking with overlap to keep context connected.
-        words = text.split()
-        if not words:
-            return []
-        chunks: list[str] = []
-        start = 0
-        step = max_words - overlap if max_words > overlap else max_words
-        while start < len(words):
-            end = start + max_words
-            slice_words = words[start:end]
-            if not slice_words:
-                break
-            chunk = " ".join(slice_words).strip()
-            if chunk:
-                chunks.append(chunk)
-            # If this was a short final slice (smaller than overlap), stop.
-            if len(slice_words) < overlap and start > 0:
-                break
-            start += step
-        return chunks
+    def _chunk_content(self, content: Union[str, List[Dict[str, str]]], max_words: int = 220, overlap: int = 40) -> list[str]:
+        if isinstance(content, str):
+            # Existing word-based chunking for flat strings
+            words = content.split()
+            if not words:
+                return []
+            chunks: list[str] = []
+            start = 0
+            step = max_words - overlap if max_words > overlap else max_words
+            while start < len(words):
+                end = start + max_words
+                slice_words = words[start:end]
+                if not slice_words:
+                    break
+                chunk = " ".join(slice_words).strip()
+                if chunk:
+                    chunks.append(chunk)
+                if len(slice_words) < overlap and start > 0:
+                    break
+                start += step
+            return chunks
+        elif isinstance(content, list):
+            # Hierarchy-aware chunking for structured content
+            chunks: list[str] = []
+            current_chunk_words: list[str] = []
+            current_heading = ""
+
+            for block in content:
+                block_type = block['type']
+                block_content = block['content']
+                block_words = block_content.split()
+
+                if block_type.startswith('h'):
+                    current_heading = block_content
+                    # Start a new chunk if current_chunk_words is not empty
+                    if current_chunk_words:
+                        chunks.append(" ".join(current_chunk_words).strip())
+                        current_chunk_words = []
+                    # Add heading itself as a chunk if it's long enough
+                    if len(block_words) > 5: # Arbitrary threshold for a meaningful heading chunk
+                        chunks.append(block_content)
+                    else: # If short, prepend to next content
+                        current_chunk_words.extend(block_words)
+                elif block_type in ['p', 'li']:
+                    # Prepend current heading to paragraph content for context
+                    prefixed_block = f"{current_heading}: {block_content}" if current_heading else block_content
+                    prefixed_block_words = prefixed_block.split()
+                    
+                    if len(current_chunk_words) + len(prefixed_block_words) <= max_words:
+                        current_chunk_words.extend(prefixed_block_words)
+                    else:
+                        if current_chunk_words:
+                            chunks.append(" ".join(current_chunk_words).strip())
+                        current_chunk_words = prefixed_block_words
+                        
+                        # Handle long individual blocks
+                        while len(current_chunk_words) > max_words:
+                            chunks.append(" ".join(current_chunk_words[:max_words]).strip())
+                            current_chunk_words = current_chunk_words[max_words - overlap:] # Add overlap
+
+            if current_chunk_words:
+                chunks.append(" ".join(current_chunk_words).strip())
+
+            # Filter out empty chunks and ensure minimal length
+            return [chunk for chunk in chunks if chunk and len(chunk.split()) >= 5]
+        return []
 
     def _increment_attempt(self, document: Document) -> None:
         attempts = 0
