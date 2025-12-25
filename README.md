@@ -72,15 +72,14 @@ python backend/scripts/generate_jwt.py --secret <JWT_SECRET>
 ```mermaid
 flowchart TD
     A["User Query"] --> B["Embedding"]
-    B --> C["Search Strategy Selection"]
-    C --> D["Vector Search"]
-    C --> E["Full-Text Search"]
-    D -- "Results with scores" --> F["Reciprocal Rank Fusion (RRF)"]
-    E -- "Results with scores" --> F
-    F -- "Combined ranked results" --> G["Reranking (optional)"]
-    G --> H["Context formulation"]
-    H --> I["LLM generation"]
-    I --> J["Answer + sources"]
+    B --> C{Search Strategy}
+    C -->|Hybrid| D["Parallel Execution"]
+    D --> E["Vector Search (Dense)"]
+    D --> F["Full-Text Search (Sparse)"]
+    E & F --> G["Reciprocal Rank Fusion (RRF)"]
+    G --> H["Reranking (Cross-Encoder)"]
+    H --> I["Context Window"]
+    I --> J["LLM Generation"]
 ```
 
 ## Project layout
